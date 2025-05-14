@@ -3,7 +3,7 @@ import time
 import threading
 import sys 
 
-class PublisherInstance:
+class Publisher:
     """
     Represents a single instance of an MQTT publisher client
     that listens for commands and publishes data bursts.
@@ -19,10 +19,10 @@ class PublisherInstance:
 
         # --- Configuration Storage ---
         self.qos = 0
-        self.delay = 100  # Default delay in ms
+        self.delay = 100 
         self.messagesize = 0
-        self.instance_count = 1 # How many instances should be active
-        self.active_thread = None # To keep track of the publishing thread
+        self.instance_count = 1 
+        self.active_thread = None 
 
         # --- Topics ---
         self.request_topics_to_subscribe = [
@@ -46,11 +46,8 @@ class PublisherInstance:
             # Subscribe to all request topics
             try:
                 result, mid = client.subscribe(self.request_topics_to_subscribe)
-                if result == mqtt.MQTT_ERR_SUCCESS:
-                     print(f"Instance {self.instance_id}: Subscribing to control topics...")
-                     # You could check individual results in the on_subscribe callback if needed
-                else:
-                     print(f"Instance {self.instance_id}: Failed to initiate subscription request, error code {result}")
+                if result != mqtt.MQTT_ERR_SUCCESS:
+                    print(f"Instance {self.instance_id}: Failed to initiate subscription request, error code {result}")
 
             except Exception as e:
                  print(f"Instance {self.instance_id}: Error during subscribe call: {e}")
@@ -58,45 +55,40 @@ class PublisherInstance:
         else:
             print(f"Instance {self.instance_id}: Failed to connect, return code {reason_code}\n")
 
+
     def on_message(self, client, userdata, msg):
         """Callback for when a message is received on a subscribed topic."""
         payload = msg.payload.decode()
         topic = msg.topic
-        print(f"Instance {self.instance_id}: Received command on topic: '{topic}' with payload: '{payload}'")
 
         # --- Update Configuration ---
         if topic == "request/qos":
             try:
                 new_qos = int(payload)
-                if new_qos in [0, 1, 2]:
-                    self.qos = new_qos
-                    print(f"Instance {self.instance_id}: Updated qos to: {self.qos}")
-                else:
-                    print(f"Instance {self.instance_id}: Invalid QoS value (must be 0, 1, or 2): {payload}")
+                self.qos = new_qos
+                print(f"Instance {self.instance_id}: Updated qos to: {self.qos} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid QoS value (not an integer): {payload}")
         elif topic == "request/delay":
             try:
                 self.delay = int(payload)
-                print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ms")
+                print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ms ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid delay value: {payload}")
         elif topic == "request/messagesize":
             try:
                 self.messagesize = int(payload)
-                print(f"Instance {self.instance_id}: Updated messagesize to: {self.messagesize}")
+                print(f"Instance {self.instance_id}: Updated messagesize to: {self.messagesize} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid messagesize value: {payload}")
         elif topic == "request/instancecount":
              try:
                 self.instance_count = int(payload)
-                print(f"Instance {self.instance_id}: Updated instancecount to: {self.instance_count}")
+                print(f"Instance {self.instance_id}: Updated instancecount to: {self.instance_count} ({topic})")
              except ValueError:
                 print(f"Instance {self.instance_id}: Invalid instancecount value: {payload}")
-
-        # --- Handle 'go' Signal ---
         elif topic == "request/go":
-            print(f"Instance {self.instance_id}: Received 'go' signal!")
+            print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
             # Check if this instance should be active
             if self.instance_id <= self.instance_count:
                 print(f"Instance {self.instance_id}: Is active (ID {self.instance_id} <= Count {self.instance_count}). Starting publish burst.")
@@ -105,11 +97,10 @@ class PublisherInstance:
                 if self.active_thread and self.active_thread.is_alive():
                     print(f"Instance {self.instance_id}: Warning - Previous burst thread still running.")
                 else:
-                    # Pass necessary config values to the thread function
                     self.active_thread = threading.Thread(
                         target=self.publishing_burst_thread,
                         args=(self.qos, self.delay, self.messagesize),
-                        daemon=True # Allows main program to exit even if thread is running
+                        daemon=True 
                     )
                     self.active_thread.start()
             else:
@@ -136,16 +127,10 @@ class PublisherInstance:
                 current_timestamp = time.time()
                 payload_string = f"{counter}:{current_timestamp}:{x_sequence}"
 
-                result = self.client.publish(topic=data_topic, payload=payload_string, qos=qos_to_use)
-                print(f"Instance {self.instance_id}: Published message {counter} to topic {data_topic} with payload {payload_string}")
-                # Optional: Check result.rc, especially for QoS 1/2
-                # if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                #    print(f"Instance {self.instance_id}: Error publishing msg {counter}, code: {result.rc}")
+                self.client.publish(topic=data_topic, payload=payload_string, qos=qos_to_use)
 
                 counter += 1
-
-                if delay_to_use > 0:
-                    time.sleep(delay_to_use / 1000.0)
+                time.sleep(delay_to_use / 1000)
 
         except Exception as e:
              print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
@@ -156,21 +141,17 @@ class PublisherInstance:
     def run(self):
         """Connects the client and starts the main loop."""
         try:
-            print(f"Instance {self.instance_id} (Client ID: {self.client_id}): Connecting to broker...")
             self.client.connect(self.broker_address, self.broker_port, keepalive=60)
-            print(f"Instance {self.instance_id}: Starting MQTT loop...")
-            self.client.loop_forever() # Blocks until disconnect
+            self.client.loop_forever() 
 
         except KeyboardInterrupt:
             print(f"Instance {self.instance_id}: Listener stopped by user.")
         except Exception as e:
             print(f"An error occurred in Instance {self.instance_id}: {e}")
         finally:
-            print(f"Instance {self.instance_id}: Disconnecting...")
             self.client.disconnect()
             print(f"Instance {self.instance_id}: Disconnected.")
 
-# --- Main Execution ---
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python publisher.py <instance_id>")
@@ -179,8 +160,7 @@ if __name__ == "__main__":
 
     try:
         instance_id_arg = int(sys.argv[1])
-        # Create and run the publisher instance
-        publisher = PublisherInstance(instance_id=instance_id_arg)
+        publisher = Publisher(instance_id=instance_id_arg)
         publisher.run()
     except ValueError:
         print(f"Error: Instance ID must be an integer. Received: {sys.argv[1]}")
