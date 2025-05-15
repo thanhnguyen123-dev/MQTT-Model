@@ -13,24 +13,23 @@ class Analyser:
         self.client_id_base = "analyser_main" # Base client ID
         self.client = None
 
-        # --- Test Parameters ---
+        # Test parameters
         self.pub_qos_levels = [0, 1, 2]
         self.delays_ms = [0, 100]
         self.message_sizes_bytes = [0, 1000, 4000]
         self.instance_counts_active = [1, 5, 10]
-        self.analyser_sub_qos_levels = [0, 1, 2] # Analyser's subscription QoS for data
+        self.analyser_sub_qos_levels = [0, 1, 2] 
 
-        # --- State for current test ---
         self.received_messages_current_test = []
-        self.sys_messages_current_test = {} # To store relevant $SYS messages
+        self.sys_messages_current_test = {} 
         self.connected = False
 
         # Attributes to store the parameters of the currently running test
-        # These will be updated by run_all_tests and used by _on_message for filtering
-        self.current_test_pub_qos = None
-        self.current_test_delay = None
-        self.current_test_msg_size = None
-        self.current_test_instance_count = None
+        # These will be updated by run_all_tests and used by on_message for filtering
+        self.current_test_pub_qos = None # QoS for publisher
+        self.current_test_delay = None # Delay for publisher
+        self.current_test_msg_size = None # Message size for publisher
+        self.current_test_instance_count = None # Number of instances for publisher
         self.current_analyser_data_sub_qos = None # QoS for counter/# subscription
 
     def parse_data_topic(self, topic_str):
@@ -63,64 +62,59 @@ class Analyser:
             print(f"Analyser ({client._client_id.decode()}): Failed to connect, return code {reason_code}\n")
             self.connected = False
 
+
     def on_message(self, client, userdata, msg):
         """Callback when a message is received."""
         topic = msg.topic
-        payload = msg.payload.decode()
+        payload_str = None 
+
+        try:
+            payload_str = msg.payload.decode('utf-8')
+        except UnicodeDecodeError as e:
+            client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
+            try:
+                payload_str = msg.payload.decode('latin-1')
+                print(f"Analyser ({client_id_str}): Successfully decoded with latin-1 as fallback.")
+            except Exception as e2:
+                print(f"Analyser ({client_id_str}): Also failed to decode with latin-1. Error: {e2}. Skipping message processing for this message.")
+                return 
+        except Exception as e: 
+            client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
+            print(f"Analyser ({client_id_str}): An unexpected error occurred during payload decoding on topic {topic}. Error: {e}. Skipping message.")
+            return
+
 
         if topic.startswith("$SYS/"):
             if topic not in self.sys_messages_current_test:
                 self.sys_messages_current_test[topic] = []
-            self.sys_messages_current_test[topic].append({'payload': payload, 'timestamp': time.time()})
+            self.sys_messages_current_test[topic].append({'payload': payload_str, 'timestamp': time.time()})
             return
 
         if topic.startswith("counter/"):
             parsed_topic_data = self.parse_data_topic(topic)
             if not parsed_topic_data:
-                # print(f"  Ignoring malformed data topic: {topic}")
                 return
 
-            # Filter: Only process messages that match the current test parameters
+            if payload_str is None:
+                client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
+                print(f"Analyser ({client_id_str}): Payload is None for topic {topic}, cannot process. This might follow a decoding error.")
+                return
+
             if (parsed_topic_data["pub_qos"] == self.current_test_pub_qos and
                 parsed_topic_data["delay"] == self.current_test_delay and
                 parsed_topic_data["msg_size"] == self.current_test_msg_size and
                 parsed_topic_data["instance_id"] <= self.current_test_instance_count):
                 
-                # print(f"  Received relevant data: Topic='{topic}', Payload='{payload}'")
                 self.received_messages_current_test.append({
-                    'topic': topic, # Full topic for detailed analysis
+                    'topic': topic,
                     'parsed_instance_id': parsed_topic_data["instance_id"],
-                    'payload': payload,
+                    'payload': payload_str,
                     'timestamp_received': time.time(),
-                    'qos_delivered': msg.qos # QoS the message was delivered with to analyser
+                    'qos_delivered': msg.qos
                 })
-            # else:
-                # Optional: Log if messages are received but filtered out
-                # print(f"  Filtering out data from topic: {topic} (doesn't match current test params)")
-        # else:
-            # print(f"  Received unexpected message on topic: {topic}")
+        else:
+            print(f"  Received unexpected message on topic: {topic}")
 
-
-    def on_subscribe(self, client, userdata, mid, reason_code_list, properties):
-        """Callback for subscription confirmation."""
-        # reason_code_list contains result for each topic in the subscribe call
-        # For multiple subscriptions in one call, need to check which one this mid refers to.
-        # For simplicity, if any failure, print a general warning.
-        # A more robust handler would map 'mid' to the topic(s) subscribed.
-        for i, rc in enumerate(reason_code_list):
-            if rc.is_failure:
-                # This part is tricky as Paho doesn't directly tell you which topic failed for a given mid
-                # when subscribing to multiple topics in one call or separate calls.
-                # We just know a subscription associated with this mid had an issue.
-                print(f"Analyser ({client._client_id.decode()}): Warning - A subscription failed or was partially successful (MID: {mid}, Reason: {rc}).")
-                break
-        # else:
-            # print(f"Analyser ({client._client_id.decode()}): Subscription(s) acknowledged (MID: {mid})")
-
-
-    def on_publish(self, client, userdata, mid, reason_code, properties):
-        """Callback for publish confirmation."""
-        pass # Keep it simple
 
     def publish_command(self, topic, payload, qos=1, retain=False):
         """Helper function to publish commands."""
@@ -141,6 +135,7 @@ class Analyser:
                 return False
         return True
 
+
     def run_all_tests(self):
         """Connects, runs all test cases, and disconnects."""
         
@@ -156,12 +151,10 @@ class Analyser:
             self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"{self.client_id_base}_subqos{sub_qos}")
             self.client.on_connect = self.on_connect
             self.client.on_message = self.on_message
-            self.client.on_subscribe = self.on_subscribe
-            self.client.on_publish = self.on_publish
             self.connected = False
 
             try:
-                self.client.connect(self.broker_address, self.broker_port, keepalive=60)
+                self.client.connect(self.broker_address, self.broker_port)
                 self.client.loop_start()
 
                 connection_timeout = 10
@@ -187,7 +180,6 @@ class Analyser:
                         self.current_test_msg_size = msg_size_test_val
                         for instance_count_test_val in self.instance_counts_active:
                             self.current_test_instance_count = instance_count_test_val
-
                             print(f"\n--- Running Test: PubQoS={self.current_test_pub_qos}, Delay={self.current_test_delay}ms, "
                                   f"Size={self.current_test_msg_size}, Instances={self.current_test_instance_count} "
                                   f"(AnalyserSubQoS={self.current_analyser_data_sub_qos}) ---")
@@ -213,14 +205,16 @@ class Analyser:
                                 print("Error sending 'go' signal. Skipping this test.")
                                 continue
                                 
-                            wait_duration = 35 
+                            wait_duration = 35
                             print(f"Analyser: Waiting {wait_duration} seconds for test data...")
                             time.sleep(wait_duration)
                             print("Analyser: Test wait period finished.")
 
                             print(f"--- Test Summary (PubQoS={self.current_test_pub_qos}, Delay={self.current_test_delay}, Size={self.current_test_msg_size}, Inst={self.current_test_instance_count}, SubQoS={self.current_analyser_data_sub_qos}) ---")
                             print(f"  Received {len(self.received_messages_current_test)} relevant data messages.")
-                            # --- Statistics Calculation will go here ---
+                           
+
+                           # statistics calculation
 
             if self.client and self.client.is_connected():
                 self.client.loop_stop()
@@ -230,7 +224,7 @@ class Analyser:
 
         print("\n===== All Test Suites Completed =====")
 
-# --- Main Execution ---
+
 if __name__ == "__main__":
     analyser = Analyser()
     analyser.run_all_tests()

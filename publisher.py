@@ -17,14 +17,14 @@ class Publisher:
         self.broker_port = broker_port
         self.client_id = f"publisher_{self.instance_id:02d}" 
 
-        # --- Configuration Storage ---
+        # Configuration storage
         self.qos = 0
         self.delay = 100 
         self.messagesize = 0
         self.instance_count = 1 
         self.active_thread = None 
 
-        # --- Topics ---
+        # Subscribed topics
         self.request_topics_to_subscribe = [
             ("request/qos", 0),
             ("request/delay", 0),
@@ -43,7 +43,6 @@ class Publisher:
         """Callback for when the client connects to the broker."""
         if reason_code == 0:
             print(f"Instance {self.instance_id}: Connected to MQTT Broker at {self.broker_address}!")
-            # Subscribe to all request topics
             try:
                 result, mid = client.subscribe(self.request_topics_to_subscribe)
                 if result != mqtt.MQTT_ERR_SUCCESS:
@@ -58,21 +57,20 @@ class Publisher:
 
     def on_message(self, client, userdata, msg):
         """Callback for when a message is received on a subscribed topic."""
+
         payload = msg.payload.decode()
         topic = msg.topic
 
-        # --- Update Configuration ---
         if topic == "request/qos":
             try:
-                new_qos = int(payload)
-                self.qos = new_qos
+                self.qos = int(payload)
                 print(f"Instance {self.instance_id}: Updated qos to: {self.qos} ({topic})")
             except ValueError:
-                print(f"Instance {self.instance_id}: Invalid QoS value (not an integer): {payload}")
+                print(f"Instance {self.instance_id}: Invalid QoS value: {payload}")
         elif topic == "request/delay":
             try:
                 self.delay = int(payload)
-                print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ms ({topic})")
+                print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid delay value: {payload}")
         elif topic == "request/messagesize":
@@ -91,14 +89,14 @@ class Publisher:
             print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
             # Check if this instance should be active
             if self.instance_id <= self.instance_count:
-                print(f"Instance {self.instance_id}: Is active (ID {self.instance_id} <= Count {self.instance_count}). Starting publish burst.")
-                # Start the publishing burst in a separate thread
+                # print(f"Instance {self.instance_id}: Is active (ID {self.instance_id} <= Count {self.instance_count}). Starting publish burst.")
+
                 # Ensure only one burst thread runs at a time per instance
                 if self.active_thread and self.active_thread.is_alive():
                     print(f"Instance {self.instance_id}: Warning - Previous burst thread still running.")
                 else:
                     self.active_thread = threading.Thread(
-                        target=self.publishing_burst_thread,
+                        target=self.publish_message,
                         args=(self.qos, self.delay, self.messagesize),
                         daemon=True 
                     )
@@ -106,20 +104,21 @@ class Publisher:
             else:
                  print(f"Instance {self.instance_id}: Is inactive (ID {self.instance_id} > Count {self.instance_count}). Doing nothing.")
 
-    def publishing_burst_thread(self, qos_to_use, delay_to_use, messagesize_to_use):
+
+    def publish_message(self, qos_to_use, delay_to_use, messagesize_to_use):
         """
         Function executed in a separate thread to publish data for 30 seconds.
         """
-        print(f"Instance {self.instance_id}: Thread started for publishing burst.")
         start_time = time.time()
         counter = 0
         x_sequence = 'x' * messagesize_to_use
         data_topic = f"counter/{self.instance_id}/{qos_to_use}/{delay_to_use}/{messagesize_to_use}"
-        print(f"Instance {self.instance_id}: Publishing data to topic: {data_topic}")
+
+        formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
+        print(f"Instance {self.instance_id}: Publishing data to topic: {data_topic} at time: {formatted_time}")
 
         try:
             while time.time() - start_time < 30:
-                # Check if client is still connected before publishing
                 if not self.client.is_connected():
                     print(f"Instance {self.instance_id}: Client disconnected during burst. Stopping thread.")
                     break
@@ -131,11 +130,10 @@ class Publisher:
 
                 counter += 1
                 time.sleep(delay_to_use / 1000)
-
         except Exception as e:
              print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
         finally:
-            print(f"Instance {self.instance_id}: Finished 30-second burst. Published {counter} messages.")
+            print(f"Instance {self.instance_id}: Finished 30-second burst. Published {counter} messages. \n")
 
 
     def run(self):
@@ -143,7 +141,6 @@ class Publisher:
         try:
             self.client.connect(self.broker_address, self.broker_port, keepalive=60)
             self.client.loop_forever() 
-
         except KeyboardInterrupt:
             print(f"Instance {self.instance_id}: Listener stopped by user.")
         except Exception as e:
@@ -152,12 +149,12 @@ class Publisher:
             self.client.disconnect()
             print(f"Instance {self.instance_id}: Disconnected.")
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python publisher.py <instance_id>")
         print("  <instance_id>: An integer between 1 and 10.")
         sys.exit(1)
-
     try:
         instance_id_arg = int(sys.argv[1])
         publisher = Publisher(instance_id=instance_id_arg)
