@@ -3,6 +3,8 @@ import time
 import threading
 import sys 
 
+WAIT_DURATION = 5
+
 class Publisher:
     """
     Represents a single instance of an MQTT publisher client
@@ -87,11 +89,7 @@ class Publisher:
                 print(f"Instance {self.instance_id}: Invalid instancecount value: {payload}")
         elif topic == "request/go":
             print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
-            # Check if this instance should be active
             if self.instance_id <= self.instance_count:
-                # print(f"Instance {self.instance_id}: Is active (ID {self.instance_id} <= Count {self.instance_count}). Starting publish burst.")
-
-                # Ensure only one burst thread runs at a time per instance
                 if self.active_thread and self.active_thread.is_alive():
                     print(f"Instance {self.instance_id}: Warning - Previous burst thread still running.")
                 else:
@@ -118,7 +116,7 @@ class Publisher:
         print(f"Instance {self.instance_id}: Publishing data to topic: {data_topic} at time: {formatted_time}")
 
         try:
-            while time.time() - start_time < 30:
+            while time.time() - start_time < WAIT_DURATION:
                 if not self.client.is_connected():
                     print(f"Instance {self.instance_id}: Client disconnected during burst. Stopping thread.")
                     break
@@ -133,7 +131,7 @@ class Publisher:
         except Exception as e:
              print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
         finally:
-            print(f"Instance {self.instance_id}: Finished 30-second burst. Published {counter} messages. \n")
+            print(f"Instance {self.instance_id}: Finished {WAIT_DURATION}-second burst. Published {counter} messages. \n")
 
 
     def run(self):

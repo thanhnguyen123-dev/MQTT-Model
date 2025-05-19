@@ -1,6 +1,7 @@
 import paho.mqtt.client as mqtt
 import time
 import sys
+from publisher import WAIT_DURATION
 
 class Analyser:
     """
@@ -31,6 +32,7 @@ class Analyser:
         self.current_test_msg_size = None # Message size for publisher
         self.current_test_instance_count = None # Number of instances for publisher
         self.current_analyser_data_sub_qos = None # QoS for counter/# subscription
+
 
     def parse_data_topic(self, topic_str):
         """
@@ -104,14 +106,28 @@ class Analyser:
                 parsed_topic_data["delay"] == self.current_test_delay and
                 parsed_topic_data["msg_size"] == self.current_test_msg_size and
                 parsed_topic_data["instance_id"] <= self.current_test_instance_count):
+
+                try:
+                    payload_content = payload_str.split(':')
+                    if len(payload_content) == 3:
+                        pub_message_counter = int(payload_content[0])
+                        pub_message_timestamp = float(payload_content[1])
                 
-                self.received_messages_current_test.append({
-                    'topic': topic,
-                    'parsed_instance_id': parsed_topic_data["instance_id"],
-                    'payload': payload_str,
-                    'timestamp_received': time.time(),
-                    'qos_delivered': msg.qos
-                })
+                
+                        self.received_messages_current_test.append({
+                            'topic': topic,
+                            'parsed_instance_id': parsed_topic_data["instance_id"],
+                            'publisher_message_counter': pub_message_counter,
+                            'publisher_message_timestamp': pub_message_timestamp,
+                            # 'payload': payload_str,
+                            'analyser_timestamp_received': time.time(),
+                            'qos_delivered': msg.qos
+                        })
+
+                except (ValueError, IndexError) as e:
+                    # Handle cases where payload_str is not in the expected "counter:timestamp[:padding]" format
+                    client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
+                    print(f"Analyser ({client_id_str}): Error parsing payload content '{payload_str}' on topic {topic}. Error: {e}. Skipping this message.")
         else:
             print(f"  Received unexpected message on topic: {topic}")
 
@@ -205,7 +221,7 @@ class Analyser:
                                 print("Error sending 'go' signal. Skipping this test.")
                                 continue
                                 
-                            wait_duration = 35
+                            wait_duration = WAIT_DURATION + 5
                             print(f"Analyser: Waiting {wait_duration} seconds for test data...")
                             time.sleep(wait_duration)
                             print("Analyser: Test wait period finished.")
