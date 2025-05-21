@@ -17,11 +17,11 @@ class Analyser:
 
         # Test parameters
         # self.pub_qos_levels = [0, 1, 2]
-        self.pub_qos_levels = [0]
-        self.delays_ms = [100]
-        self.message_sizes_bytes = [1000]
+        self.pub_qos_levels = [0, 1, 2]
+        self.delays_ms = [0, 100]
+        self.message_sizes_bytes = [0, 1000, 4000]
         self.instance_counts_active = [1]
-        self.analyser_sub_qos_levels = [0] 
+        self.analyser_sub_qos_levels = [0, 1, 2] 
 
         self.received_messages_current_test = []
         self.sys_messages_current_test = {} 
@@ -29,11 +29,11 @@ class Analyser:
 
         # Attributes to store the parameters of the currently running test
         # These will be updated by run_all_tests and used by on_message for filtering
-        self.current_test_pub_qos = None # QoS for publisher
-        self.current_test_delay = None # Delay for publisher
-        self.current_test_msg_size = None # Message size for publisher
-        self.current_test_instance_count = None # Number of instances for publisher
-        self.current_analyser_data_sub_qos = None # QoS for counter/# subscription
+        self.pub_qos = None 
+        self.delay = None 
+        self.message_size = None 
+        self.instance_count = None    
+        self.qos = None 
 
 
     def parse_data_topic(self, topic_str):
@@ -60,7 +60,7 @@ class Analyser:
         if reason_code == 0:
             print(f"Analyser ({client._client_id.decode()}): Connected successfully!")
             self.connected = True
-            client.subscribe("counter/#", qos=self.current_analyser_data_sub_qos)
+            client.subscribe("counter/#", qos=self.qos)
             client.subscribe("$SYS/#", qos=0)   
         else:
             print(f"Analyser ({client._client_id.decode()}): Failed to connect, return code {reason_code}\n")
@@ -104,10 +104,10 @@ class Analyser:
                 print(f"Analyser ({client_id_str}): Payload is None for topic {topic}, cannot process. This might follow a decoding error.")
                 return
 
-            if (parsed_topic_data["pub_qos"] == self.current_test_pub_qos and
-                parsed_topic_data["delay"] == self.current_test_delay and
-                parsed_topic_data["msg_size"] == self.current_test_msg_size and
-                parsed_topic_data["instance_id"] <= self.current_test_instance_count):
+            if (parsed_topic_data["pub_qos"] == self.pub_qos and
+                parsed_topic_data["delay"] == self.delay and
+                parsed_topic_data["msg_size"] == self.message_size and
+                parsed_topic_data["instance_id"] <= self.instance_count):
 
                 try:
                     payload_content = payload_str.split(':')
@@ -121,13 +121,11 @@ class Analyser:
                             'parsed_instance_id': parsed_topic_data["instance_id"],
                             'publisher_message_counter': pub_message_counter,
                             'publisher_message_timestamp': pub_message_timestamp,
-                            # 'payload': payload_str,
                             'analyser_timestamp_received': time.time(),
                             'qos_delivered': msg.qos
                         })
 
                 except (ValueError, IndexError) as e:
-                    # Handle cases where payload_str is not in the expected "counter:timestamp[:padding]" format
                     client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
                     print(f"Analyser ({client_id_str}): Error parsing payload content '{payload_str}' on topic {topic}. Error: {e}. Skipping this message.")
         else:
@@ -155,13 +153,13 @@ class Analyser:
 
         all_instances_loss_percentages = []
 
-        for instance_id in range(1, self.current_test_instance_count + 1):
+        for instance_id in range(1, self.instance_count + 1):
             received_counters = sorted(messages_by_instance.get(instance_id, []))
             actual_messages = len(set(received_counters))
 
             expected_messages = 0
-            if self.current_test_delay > 0:
-                expected_messages  = int(round(WAIT_DURATION * 1000 / self.current_test_delay))
+            if self.delay > 0:
+                expected_messages  = int(round(WAIT_DURATION * 1000 / self.delay))
             else:
                 if actual_messages > 0:
                     max_counter = max(received_counters)
@@ -184,10 +182,11 @@ class Analyser:
             all_instances_loss_percentages.append(lost_percentage)
         
         average_loss_rate = 0.0
-        if self.current_test_instance_count > 0 and all_instances_loss_percentages:
-            average_loss_rate = sum(all_instances_loss_percentages) / self.current_test_instance_count
+        if self.instance_count > 0 and all_instances_loss_percentages:
+            average_loss_rate = sum(all_instances_loss_percentages) / self.instance_count
 
         stats['average_loss_rate'] = average_loss_rate
+
         return stats
 
 
@@ -216,7 +215,7 @@ class Analyser:
         
         for sub_qos in self.analyser_sub_qos_levels:
             print(f"\n{'='*10} Starting Test Suite for Analyser Subscription QoS = {sub_qos} {'='*10}")
-            self.current_analyser_data_sub_qos = sub_qos # Set QoS for 'counter/#' for this suite
+            self.qos = sub_qos # Set QoS for 'counter/#' for this suite
 
             if self.client and self.client.is_connected():
                 self.client.loop_stop()
@@ -248,26 +247,26 @@ class Analyser:
                 continue
 
             for pub_qos_test_val in self.pub_qos_levels:
-                self.current_test_pub_qos = pub_qos_test_val
+                self.pub_qos = pub_qos_test_val
                 for delay_test_val in self.delays_ms:
-                    self.current_test_delay = delay_test_val
+                    self.delay = delay_test_val
                     for msg_size_test_val in self.message_sizes_bytes:
-                        self.current_test_msg_size = msg_size_test_val
+                        self.message_size = msg_size_test_val
                         for instance_count_test_val in self.instance_counts_active:
-                            self.current_test_instance_count = instance_count_test_val
-                            print(f"\n--- Running Test: PubQoS={self.current_test_pub_qos}, Delay={self.current_test_delay}ms, "
-                                  f"Size={self.current_test_msg_size}, Instances={self.current_test_instance_count} "
-                                  f"(AnalyserSubQoS={self.current_analyser_data_sub_qos}) ---")
+                            self.instance_count = instance_count_test_val
+                            print(f"\n--- Running Test: PubQoS={self.pub_qos}, Delay={self.delay}ms, "
+                                  f"Size={self.message_size}, Instances={self.instance_count} "
+                                  f"(AnalyserSubQoS={self.qos}) ---")
 
                             self.received_messages_current_test.clear()
                             self.sys_messages_current_test.clear()
 
                             print("Analyser: Sending configuration commands...")
                             cmd_success = True
-                            cmd_success &= self.publish_command("request/qos", self.current_test_pub_qos)
-                            cmd_success &= self.publish_command("request/delay", self.current_test_delay)
-                            cmd_success &= self.publish_command("request/messagesize", self.current_test_msg_size)
-                            cmd_success &= self.publish_command("request/instancecount", self.current_test_instance_count)
+                            cmd_success &= self.publish_command("request/qos", self.pub_qos)
+                            cmd_success &= self.publish_command("request/delay", self.delay)
+                            cmd_success &= self.publish_command("request/messagesize", self.message_size)
+                            cmd_success &= self.publish_command("request/instancecount", self.instance_count)
                             
                             if not cmd_success:
                                 print("Error sending one or more configuration commands. Skipping this test.")
@@ -287,7 +286,7 @@ class Analyser:
 
                             current_test_stats = self.calculate_statistics()
 
-                            print(f"--- Test Summary (PubQoS={self.current_test_pub_qos}, Delay={self.current_test_delay}, Size={self.current_test_msg_size}, Inst={self.current_test_instance_count}, SubQoS={self.current_analyser_data_sub_qos}) ---")
+                            print(f"--- Test Summary (PubQoS={self.pub_qos}, Delay={self.delay}, Size={self.message_size}, Inst={self.instance_count}, SubQoS={self.qos}) ---")
                             print(f"  Received {len(self.received_messages_current_test)} relevant data messages.")
                             
                             print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
