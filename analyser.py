@@ -12,20 +12,21 @@ class Analyser:
     def __init__(self, broker_address="localhost", broker_port=1883):
         self.broker_address = broker_address
         self.broker_port = broker_port
-        self.client_id_base = "analyser_main" # Base client ID
+        self.client_id_base = "analyser_main"   
         self.client = None
 
         # Test parameters
-        # self.pub_qos_levels = [0, 1, 2]
         self.pub_qos_levels = [0, 1, 2]
         self.delays_ms = [0, 100]
         self.message_sizes_bytes = [0, 1000, 4000]
         self.instance_counts_active = [1]
         self.analyser_sub_qos_levels = [0, 1, 2] 
 
-        self.received_messages_current_test = []
-        self.sys_messages_current_test = {} 
+        self.received_messages = []
+        self.sys_messages = {} 
         self.connected = False
+
+        self.all_tests_results = []
 
         # Attributes to store the parameters of the currently running test
         # These will be updated by run_all_tests and used by on_message for filtering
@@ -89,19 +90,14 @@ class Analyser:
 
 
         if topic.startswith("$SYS/"):
-            if topic not in self.sys_messages_current_test:
-                self.sys_messages_current_test[topic] = []
-            self.sys_messages_current_test[topic].append({'payload': payload_str, 'timestamp': time.time()})
+            if topic not in self.sys_messages:
+                self.sys_messages[topic] = []
+            self.sys_messages[topic].append({'payload': payload_str, 'timestamp': time.time()})
             return
 
         if topic.startswith("counter/"):
             parsed_topic_data = self.parse_data_topic(topic)
-            if not parsed_topic_data:
-                return
-
-            if payload_str is None:
-                client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
-                print(f"Analyser ({client_id_str}): Payload is None for topic {topic}, cannot process. This might follow a decoding error.")
+            if not parsed_topic_data or payload_str is None:
                 return
 
             if (parsed_topic_data["pub_qos"] == self.pub_qos and
@@ -116,7 +112,7 @@ class Analyser:
                         pub_message_timestamp = float(payload_content[1])
                 
                 
-                        self.received_messages_current_test.append({
+                        self.received_messages.append({
                             'topic': topic,
                             'parsed_instance_id': parsed_topic_data["instance_id"],
                             'publisher_message_counter': pub_message_counter,
@@ -137,14 +133,14 @@ class Analyser:
         Calculates statistics for the current test.
         """
         stats = {}
-        num_received = len(self.received_messages_current_test)
+        num_received = len(self.received_messages)
 
         # Calculate total mean rate
-        stats['total_mean_rate'] = num_received / WAIT_DURATION if num_received > 0 else 0
+        total_mean_rate = num_received / WAIT_DURATION if num_received > 0 else 0
 
         # Calculate the message lost rate
         messages_by_instance = {}
-        for msg_data in self.received_messages_current_test:
+        for msg_data in self.received_messages:
             instance_id = msg_data['parsed_instance_id']
             if instance_id not in messages_by_instance:
                 messages_by_instance[instance_id] = []
@@ -155,27 +151,27 @@ class Analyser:
 
         for instance_id in range(1, self.instance_count + 1):
             received_counters = sorted(messages_by_instance.get(instance_id, []))
-            actual_messages = len(set(received_counters))
+            actual_count = len(set(received_counters))
 
-            expected_messages = 0
+            expected_count = 0
             if self.delay > 0:
-                expected_messages  = int(round(WAIT_DURATION * 1000 / self.delay))
+                expected_count  = int(round(WAIT_DURATION * 1000 / self.delay))
             else:
-                if actual_messages > 0:
+                if actual_count > 0:
                     max_counter = max(received_counters)
-                    expected_messages = max_counter + 1
+                    expected_count = max_counter + 1
                 else:
-                    if actual_messages == 0:
-                        expected_messages = 1
+                    if actual_count == 0:
+                        expected_count = 1
                     else:
-                        expected_messages = actual_messages
+                        expected_count = actual_count
 
             loss_percentage = 0
-            if expected_messages > 0:
-                lost_messages = expected_messages - actual_messages
-                loss_percentage = (lost_messages / expected_messages) * 100
+            if expected_count > 0:
+                lost_count = expected_count - actual_count
+                loss_percentage = (lost_count / expected_count) * 100
 
-            elif actual_messages == 0:
+            elif actual_count == 0:
                 pass
 
             lost_percentage = max(0.0, min(100.0, loss_percentage))
@@ -185,9 +181,11 @@ class Analyser:
         if self.instance_count > 0 and all_instances_loss_percentages:
             average_loss_rate = sum(all_instances_loss_percentages) / self.instance_count
 
-        stats['average_loss_rate'] = average_loss_rate
-
-        return stats
+        publisher_stats = {
+            'total_mean_rate': total_mean_rate,
+            'average_loss_rate': average_loss_rate,
+        }
+        return publisher_stats
 
 
     def publish_command(self, topic, payload, qos=1, retain=False):
@@ -258,8 +256,8 @@ class Analyser:
                                   f"Size={self.message_size}, Instances={self.instance_count} "
                                   f"(AnalyserSubQoS={self.qos}) ---")
 
-                            self.received_messages_current_test.clear()
-                            self.sys_messages_current_test.clear()
+                            self.received_messages.clear()
+                            self.sys_messages.clear()
 
                             print("Analyser: Sending configuration commands...")
                             cmd_success = True
@@ -287,7 +285,7 @@ class Analyser:
                             current_test_stats = self.calculate_statistics()
 
                             print(f"--- Test Summary (PubQoS={self.pub_qos}, Delay={self.delay}, Size={self.message_size}, Inst={self.instance_count}, SubQoS={self.qos}) ---")
-                            print(f"  Received {len(self.received_messages_current_test)} relevant data messages.")
+                            print(f"  Received {len(self.received_messages)} relevant data messages.")
                             
                             print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
                             print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f}%")
