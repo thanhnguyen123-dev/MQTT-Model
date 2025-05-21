@@ -140,11 +140,54 @@ class Analyser:
         """
         stats = {}
         num_received = len(self.received_messages_current_test)
-        if num_received > 0:
-            stats['total_mean_rate'] = num_received / WAIT_DURATION
-        else:
-            stats['total_mean_rate'] = 0
 
+        # Calculate total mean rate
+        stats['total_mean_rate'] = num_received / WAIT_DURATION if num_received > 0 else 0
+
+        # Calculate the message lost rate
+        messages_by_instance = {}
+        for msg_data in self.received_messages_current_test:
+            instance_id = msg_data['parsed_instance_id']
+            if instance_id not in messages_by_instance:
+                messages_by_instance[instance_id] = []
+            messages_by_instance[instance_id].append(msg_data['publisher_message_counter'])
+        
+
+        all_instances_loss_percentages = []
+
+        for instance_id in range(1, self.current_test_instance_count + 1):
+            received_counters = sorted(messages_by_instance.get(instance_id, []))
+            actual_messages = len(set(received_counters))
+
+            expected_messages = 0
+            if self.current_test_delay > 0:
+                expected_messages  = int(round(WAIT_DURATION * 1000 / self.current_test_delay))
+            else:
+                if actual_messages > 0:
+                    max_counter = max(received_counters)
+                    expected_messages = max_counter + 1
+                else:
+                    if actual_messages == 0:
+                        expected_messages = 1
+                    else:
+                        expected_messages = actual_messages
+
+            loss_percentage = 0
+            if expected_messages > 0:
+                lost_messages = expected_messages - actual_messages
+                loss_percentage = (lost_messages / expected_messages) * 100
+
+            elif actual_messages == 0:
+                pass
+
+            lost_percentage = max(0.0, min(100.0, loss_percentage))
+            all_instances_loss_percentages.append(lost_percentage)
+        
+        average_loss_rate = 0.0
+        if self.current_test_instance_count > 0 and all_instances_loss_percentages:
+            average_loss_rate = sum(all_instances_loss_percentages) / self.current_test_instance_count
+
+        stats['average_loss_rate'] = average_loss_rate
         return stats
 
 
@@ -248,11 +291,12 @@ class Analyser:
                             print(f"  Received {len(self.received_messages_current_test)} relevant data messages.")
                             
                             print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
+                            print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f}%")
                             # temporary print
-                            for i, data_items in enumerate(self.received_messages_current_test[:3]):
-                                print(f" Msg {i}: {data_items}")
-                            if len(self.received_messages_current_test) > 3:
-                                print(f" ... and {len(self.received_messages_current_test) - 3} more messages.")
+                            # for i, data_items in enumerate(self.received_messages_current_test[:3]):
+                            #     print(f" Msg {i}: {data_items}")
+                            # if len(self.received_messages_current_test) > 3:
+                            #     print(f" ... and {len(self.received_messages_current_test) - 3} more messages.")
                            
 
                            # statistics calculation

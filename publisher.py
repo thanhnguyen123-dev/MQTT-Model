@@ -102,6 +102,8 @@ class Publisher:
                     self.active_thread.start()
             else:
                  print(f"Instance {self.instance_id}: Is inactive (ID {self.instance_id} > Count {self.instance_count}). Doing nothing.")
+        else: 
+            print(f"Instance {self.instance_id}: Received unexpected message on topic: {topic}")
 
 
     def publish_message(self, qos_to_use, delay_to_use, messagesize_to_use):
