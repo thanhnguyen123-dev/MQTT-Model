@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import time
 import sys
 from publisher import WAIT_DURATION
+from utils import Utils
 
 class Analyser:
     """
@@ -15,11 +16,12 @@ class Analyser:
         self.client = None
 
         # Test parameters
-        self.pub_qos_levels = [0, 1, 2]
-        self.delays_ms = [0, 100]
-        self.message_sizes_bytes = [0, 1000, 4000]
-        self.instance_counts_active = [1, 5, 10]
-        self.analyser_sub_qos_levels = [0, 1, 2] 
+        # self.pub_qos_levels = [0, 1, 2]
+        self.pub_qos_levels = [0]
+        self.delays_ms = [100]
+        self.message_sizes_bytes = [1000]
+        self.instance_counts_active = [1]
+        self.analyser_sub_qos_levels = [0] 
 
         self.received_messages_current_test = []
         self.sys_messages_current_test = {} 
@@ -132,6 +134,20 @@ class Analyser:
             print(f"  Received unexpected message on topic: {topic}")
 
 
+    def calculate_statistics(self):
+        """
+        Calculates statistics for the current test.
+        """
+        stats = {}
+        num_received = len(self.received_messages_current_test)
+        if num_received > 0:
+            stats['total_mean_rate'] = num_received / WAIT_DURATION
+        else:
+            stats['total_mean_rate'] = 0
+
+        return stats
+
+
     def publish_command(self, topic, payload, qos=1, retain=False):
         """Helper function to publish commands."""
         if not self.client or not self.client.is_connected():
@@ -226,8 +242,17 @@ class Analyser:
                             time.sleep(wait_duration)
                             print("Analyser: Test wait period finished.")
 
+                            current_test_stats = self.calculate_statistics()
+
                             print(f"--- Test Summary (PubQoS={self.current_test_pub_qos}, Delay={self.current_test_delay}, Size={self.current_test_msg_size}, Inst={self.current_test_instance_count}, SubQoS={self.current_analyser_data_sub_qos}) ---")
                             print(f"  Received {len(self.received_messages_current_test)} relevant data messages.")
+                            
+                            print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
+                            # temporary print
+                            for i, data_items in enumerate(self.received_messages_current_test[:3]):
+                                print(f" Msg {i}: {data_items}")
+                            if len(self.received_messages_current_test) > 3:
+                                print(f" ... and {len(self.received_messages_current_test) - 3} more messages.")
                            
 
                            # statistics calculation

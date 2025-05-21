@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import time
 import threading
 import sys 
+from utils import Utils
 
 WAIT_DURATION = 5
 
@@ -112,7 +113,7 @@ class Publisher:
         x_sequence = 'x' * messagesize_to_use
         data_topic = f"counter/{self.instance_id}/{qos_to_use}/{delay_to_use}/{messagesize_to_use}"
 
-        formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time))
+        formatted_time = Utils.format_time(start_time)
         print(f"Instance {self.instance_id}: Publishing data to topic: {data_topic} at time: {formatted_time}")
 
         try:
