@@ -147,8 +147,9 @@ class Analyser:
         
 
         all_instances_loss_percentages = []
+        all_instances_out_of_order_percentages = []
         for instance_id in range(1, self.instance_count + 1):
-            received_counters = sorted(messages_by_instance.get(instance_id, []))
+            received_counters = messages_by_instance.get(instance_id, [])
             actual_count = len(set(received_counters))
 
             expected_count = 0
@@ -164,10 +165,29 @@ class Analyser:
 
             lost_percentage = max(0.0, min(100.0, loss_percentage))
             all_instances_loss_percentages.append(lost_percentage)
-    
+
+
+            # Calculate out of the number of out of order messages
+            out_of_order_count = 0
+            for i in range(1, len(received_counters)):
+                current_counter = received_counters[i]
+                previous_counter = received_counters[i-1]
+                if current_counter < previous_counter:
+                    out_of_order_count += 1
+
+            out_of_order_percentage = 0.0
+            if len(received_counters) > 0:
+                out_of_order_percentage = (out_of_order_count / len(received_counters)) * 100
+            all_instances_out_of_order_percentages.append(out_of_order_percentage)
+
+
         average_loss_rate = 0.0
         if self.instance_count > 0 and all_instances_loss_percentages:
             average_loss_rate = sum(all_instances_loss_percentages) / self.instance_count
+
+        average_out_of_order_rate = 0.0
+        if self.instance_count > 0 and all_instances_out_of_order_percentages:
+            average_out_of_order_rate = sum(all_instances_out_of_order_percentages) / self.instance_count
 
         publisher_stats = {
             'instance_count': self.instance_count,
@@ -175,9 +195,10 @@ class Analyser:
             'delay': self.delay,
             'message_size': self.message_size,
             'sub_qos': self.qos,
+            'total_messages_received': num_received,
             'total_mean_rate': total_mean_rate,
             'average_loss_rate': average_loss_rate,
-            'total_messages_received': num_received,
+            'average_out_of_order_rate': average_out_of_order_rate
         }
 
         all_tests_results.append(publisher_stats)
