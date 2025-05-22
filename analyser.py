@@ -5,6 +5,7 @@ from publisher import WAIT_DURATION
 from utils import Utils
 import json
 from collections import Counter
+from statistics import mean
 
 
 all_tests_results = []
@@ -140,7 +141,6 @@ class Analyser:
         # Calculate total mean rate
         total_mean_rate = num_received / WAIT_DURATION if num_received > 0 else 0
 
-        # Calculate the message lost rate
         messages_by_instance = {}
         for msg_data in self.received_messages:
             instance_id = msg_data['parsed_instance_id']
@@ -148,7 +148,6 @@ class Analyser:
                 messages_by_instance[instance_id] = []
             messages_by_instance[instance_id].append(msg_data['publisher_message_counter'])
         
-
         all_instances_loss_percentages = []
         all_instances_out_of_order_percentages = []
         all_instances_duplicate_percentages = []
@@ -196,18 +195,9 @@ class Analyser:
                 duplicate_percentage = (duplicate_count / len(received_counters)) * 100
             all_instances_duplicate_percentages.append(duplicate_percentage)
 
-
-        average_loss_rate = 0.0
-        if self.instance_count > 0 and all_instances_loss_percentages:
-            average_loss_rate = sum(all_instances_loss_percentages) / self.instance_count
-
-        average_out_of_order_rate = 0.0
-        if self.instance_count > 0 and all_instances_out_of_order_percentages:
-            average_out_of_order_rate = sum(all_instances_out_of_order_percentages) / self.instance_count
-
-        average_duplicate_rate = 0.0
-        if self.instance_count > 0 and all_instances_duplicate_percentages:
-            average_duplicate_rate = sum(all_instances_duplicate_percentages) / self.instance_count
+        average_loss_rate = mean(all_instances_loss_percentages) if all_instances_loss_percentages and self.instance_count > 0 else 0.0
+        average_out_of_order_rate = mean(all_instances_out_of_order_percentages) if all_instances_out_of_order_percentages and self.instance_count > 0 else 0.0
+        average_duplicate_rate = mean(all_instances_duplicate_percentages) if all_instances_duplicate_percentages and self.instance_count > 0 else 0.0
 
         publisher_stats = {
             'instance_count': self.instance_count,
