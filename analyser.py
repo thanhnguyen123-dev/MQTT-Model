@@ -3,6 +3,8 @@ import time
 import sys
 from publisher import WAIT_DURATION
 from utils import Utils
+import json
+all_tests_results = []
 
 class Analyser:
     """
@@ -25,9 +27,7 @@ class Analyser:
         self.received_messages = []
         self.sys_messages = {} 
         self.connected = False
-
-        self.all_tests_results = []
-
+        
         # Attributes to store the parameters of the currently running test
         # These will be updated by run_all_tests and used by on_message for filtering
         self.pub_qos = None 
@@ -132,7 +132,6 @@ class Analyser:
         """
         Calculates statistics for the current test.
         """
-        stats = {}
         num_received = len(self.received_messages)
 
         # Calculate total mean rate
@@ -148,7 +147,6 @@ class Analyser:
         
 
         all_instances_loss_percentages = []
-
         for instance_id in range(1, self.instance_count + 1):
             received_counters = sorted(messages_by_instance.get(instance_id, []))
             actual_count = len(set(received_counters))
@@ -157,34 +155,32 @@ class Analyser:
             if self.delay > 0:
                 expected_count  = int(round(WAIT_DURATION * 1000 / self.delay))
             else:
-                if actual_count > 0:
-                    max_counter = max(received_counters)
-                    expected_count = max_counter + 1
-                else:
-                    if actual_count == 0:
-                        expected_count = 1
-                    else:
-                        expected_count = actual_count
+                expected_count = max(received_counters) + 1 if actual_count > 0 else 1
 
             loss_percentage = 0
             if expected_count > 0:
                 lost_count = expected_count - actual_count
                 loss_percentage = (lost_count / expected_count) * 100
 
-            elif actual_count == 0:
-                pass
-
             lost_percentage = max(0.0, min(100.0, loss_percentage))
             all_instances_loss_percentages.append(lost_percentage)
-        
+    
         average_loss_rate = 0.0
         if self.instance_count > 0 and all_instances_loss_percentages:
             average_loss_rate = sum(all_instances_loss_percentages) / self.instance_count
 
         publisher_stats = {
+            'instance_count': self.instance_count,
+            'pub_qos': self.pub_qos,
+            'delay': self.delay,
+            'message_size': self.message_size,
+            'sub_qos': self.qos,
             'total_mean_rate': total_mean_rate,
             'average_loss_rate': average_loss_rate,
+            'total_messages_received': num_received,
         }
+
+        all_tests_results.append(publisher_stats)
         return publisher_stats
 
 
@@ -270,7 +266,7 @@ class Analyser:
                                 print("Error sending one or more configuration commands. Skipping this test.")
                                 continue
 
-                            time.sleep(1.5) 
+                            # time.sleep(1.5) 
 
                             print("Analyser: Sending 'go' signal...")
                             if not self.publish_command("request/go", "start_burst"):
@@ -288,24 +284,24 @@ class Analyser:
                             print(f"  Received {len(self.received_messages)} relevant data messages.")
                             
                             print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
-                            print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f}%")
-                            # temporary print
-                            # for i, data_items in enumerate(self.received_messages_current_test[:3]):
-                            #     print(f" Msg {i}: {data_items}")
-                            # if len(self.received_messages_current_test) > 3:
-                            #     print(f" ... and {len(self.received_messages_current_test) - 3} more messages.")
-                           
+                            print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f} %")
 
-                           # statistics calculation
 
             if self.client and self.client.is_connected():
                 self.client.loop_stop()
                 self.client.disconnect()
                 print(f"Analyser ({self.client._client_id.decode()}): Disconnected after suite for sub_qos={sub_qos}.")
-            time.sleep(1)
+            # time.sleep(1)
 
+        self.save_results_to_json()
         print("\n===== All Test Suites Completed =====")
 
+
+    def save_results_to_json(self):
+        """Saves all test results to a JSON file."""
+        json_filename = "all_tests_results.json"
+        with open(json_filename, "w") as f:
+            json.dump(all_tests_results, f, indent=4)
 
 if __name__ == "__main__":
     analyser = Analyser()

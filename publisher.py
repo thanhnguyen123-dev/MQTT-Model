@@ -4,7 +4,7 @@ import threading
 import sys 
 from utils import Utils
 
-WAIT_DURATION = 5
+WAIT_DURATION = 30
 
 class Publisher:
     """
