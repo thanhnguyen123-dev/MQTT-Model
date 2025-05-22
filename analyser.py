@@ -4,6 +4,9 @@ import sys
 from publisher import WAIT_DURATION
 from utils import Utils
 import json
+from collections import Counter
+
+
 all_tests_results = []
 
 class Analyser:
@@ -148,10 +151,12 @@ class Analyser:
 
         all_instances_loss_percentages = []
         all_instances_out_of_order_percentages = []
+        all_instances_duplicate_percentages = []
         for instance_id in range(1, self.instance_count + 1):
             received_counters = messages_by_instance.get(instance_id, [])
-            actual_count = len(set(received_counters))
 
+            # Calculate the loss message percentage
+            actual_count = len(set(received_counters))
             expected_count = 0
             if self.delay > 0:
                 expected_count  = int(round(WAIT_DURATION * 1000 / self.delay))
@@ -166,8 +171,7 @@ class Analyser:
             lost_percentage = max(0.0, min(100.0, loss_percentage))
             all_instances_loss_percentages.append(lost_percentage)
 
-
-            # Calculate out of the number of out of order messages
+            # Calculate out of order message percentage
             out_of_order_count = 0
             for i in range(1, len(received_counters)):
                 current_counter = received_counters[i]
@@ -180,6 +184,18 @@ class Analyser:
                 out_of_order_percentage = (out_of_order_count / len(received_counters)) * 100
             all_instances_out_of_order_percentages.append(out_of_order_percentage)
 
+            # Calculate the duplicate message percentage
+            duplicate_count = 0
+            counter_counts = dict(Counter(received_counters))
+            for counter, count in counter_counts.items():
+                if count > 1:
+                    duplicate_count += count - 1
+
+            duplicate_percentage = 0.0
+            if len(received_counters) > 0:
+                duplicate_percentage = (duplicate_count / len(received_counters)) * 100
+            all_instances_duplicate_percentages.append(duplicate_percentage)
+
 
         average_loss_rate = 0.0
         if self.instance_count > 0 and all_instances_loss_percentages:
@@ -188,6 +204,10 @@ class Analyser:
         average_out_of_order_rate = 0.0
         if self.instance_count > 0 and all_instances_out_of_order_percentages:
             average_out_of_order_rate = sum(all_instances_out_of_order_percentages) / self.instance_count
+
+        average_duplicate_rate = 0.0
+        if self.instance_count > 0 and all_instances_duplicate_percentages:
+            average_duplicate_rate = sum(all_instances_duplicate_percentages) / self.instance_count
 
         publisher_stats = {
             'instance_count': self.instance_count,
@@ -198,7 +218,8 @@ class Analyser:
             'total_messages_received': num_received,
             'total_mean_rate': total_mean_rate,
             'average_loss_rate': average_loss_rate,
-            'average_out_of_order_rate': average_out_of_order_rate
+            'average_out_of_order_rate': average_out_of_order_rate,
+            'average_duplicate_rate': average_duplicate_rate
         }
 
         all_tests_results.append(publisher_stats)
