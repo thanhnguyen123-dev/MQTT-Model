@@ -141,18 +141,22 @@ class Analyser:
         # Calculate total mean rate
         total_mean_rate = num_received / WAIT_DURATION if num_received > 0 else 0
 
-        messages_by_instance = {}
+        instance_messages_map = {}
         for msg_data in self.received_messages:
             instance_id = msg_data['parsed_instance_id']
-            if instance_id not in messages_by_instance:
-                messages_by_instance[instance_id] = []
-            messages_by_instance[instance_id].append(msg_data['publisher_message_counter'])
+            if instance_id not in instance_messages_map:
+                instance_messages_map[instance_id] = []
+            instance_messages_map[instance_id].append({
+                'counter': msg_data['publisher_message_counter'],
+                'timestamp': msg_data['analyser_timestamp_received']
+            })
         
         all_instances_loss_percentages = []
         all_instances_out_of_order_percentages = []
         all_instances_duplicate_percentages = []
         for instance_id in range(1, self.instance_count + 1):
-            received_counters = messages_by_instance.get(instance_id, [])
+            instance_messages = instance_messages_map.get(instance_id, [])
+            received_counters = [msg['counter'] for msg in instance_messages]
 
             # Calculate the loss message percentage
             actual_count = len(set(received_counters))
@@ -317,6 +321,8 @@ class Analyser:
                             
                             print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
                             print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f} %")
+                            print(f"  Average Out of Order Rate: {current_test_stats['average_out_of_order_rate']:.2f} %")
+                            print(f"  Average Duplicate Rate: {current_test_stats['average_duplicate_rate']:.2f} %")
 
 
             if self.client and self.client.is_connected():
