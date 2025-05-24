@@ -5,7 +5,7 @@ from publisher import WAIT_DURATION
 from utils import Utils
 import json
 from collections import Counter
-from statistics import mean
+from statistics import mean, stdev
 
 
 all_tests_results = []
@@ -154,6 +154,8 @@ class Analyser:
         all_instances_loss_percentages = []
         all_instances_out_of_order_percentages = []
         all_instances_duplicate_percentages = []
+        all_instances_mean_gaps = []
+        all_instances_stdev_gaps = []
         for instance_id in range(1, self.instance_count + 1):
             instance_messages = instance_messages_map.get(instance_id, [])
             received_counters = [msg['counter'] for msg in instance_messages]
@@ -199,9 +201,30 @@ class Analyser:
                 duplicate_percentage = (duplicate_count / len(received_counters)) * 100
             all_instances_duplicate_percentages.append(duplicate_percentage)
 
+            # Calculate the mean-intern-message-gap (timestamp difference) between consecutive messages
+            gap_ms_for_instance = []
+            if len(instance_messages) > 1:
+                for i in range(len(instance_messages) - 1):
+                    current_msg = instance_messages[i]
+                    next_msg = instance_messages[i+1]
+
+                    # check if the next message is the consecutive message
+                    if next_msg['counter'] == current_msg['counter'] + 1:
+                        gap_seconds = next_msg['timestamp'] - current_msg['timestamp']
+                        gap_milliseconds = gap_seconds * 1000
+                        gap_ms_for_instance.append(gap_milliseconds)
+            
+            mean_gap_for_instance = mean(gap_ms_for_instance) if gap_ms_for_instance else 0.0
+            stdev_gap_for_instance = stdev(gap_ms_for_instance) if len(gap_ms_for_instance) >= 2 else 0.0
+            all_instances_mean_gaps.append(mean_gap_for_instance)
+            all_instances_stdev_gaps.append(stdev_gap_for_instance)
+
+        # Calculate the average (per-publisher)
         average_loss_rate = mean(all_instances_loss_percentages) if all_instances_loss_percentages and self.instance_count > 0 else 0.0
         average_out_of_order_rate = mean(all_instances_out_of_order_percentages) if all_instances_out_of_order_percentages and self.instance_count > 0 else 0.0
         average_duplicate_rate = mean(all_instances_duplicate_percentages) if all_instances_duplicate_percentages and self.instance_count > 0 else 0.0
+        average_mean_gap = mean(all_instances_mean_gaps) if all_instances_mean_gaps and self.instance_count > 0 else 0.0
+        average_stdev_gap = mean(all_instances_stdev_gaps) if all_instances_stdev_gaps and self.instance_count > 0 else 0.0
 
         publisher_stats = {
             'instance_count': self.instance_count,
@@ -213,7 +236,9 @@ class Analyser:
             'total_mean_rate': total_mean_rate,
             'average_loss_rate': average_loss_rate,
             'average_out_of_order_rate': average_out_of_order_rate,
-            'average_duplicate_rate': average_duplicate_rate
+            'average_duplicate_rate': average_duplicate_rate,
+            'average_mean_gap': average_mean_gap,
+            'average_stdev_gap': average_stdev_gap
         }
 
         all_tests_results.append(publisher_stats)
@@ -323,6 +348,8 @@ class Analyser:
                             print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f} %")
                             print(f"  Average Out of Order Rate: {current_test_stats['average_out_of_order_rate']:.2f} %")
                             print(f"  Average Duplicate Rate: {current_test_stats['average_duplicate_rate']:.2f} %")
+                            print(f"  Average Mean Gap: {current_test_stats['average_mean_gap']:.2f} ms")
+                            print(f"  Average Stdev Gap: {current_test_stats['average_stdev_gap']:.2f} ms")
 
 
             if self.client and self.client.is_connected():
