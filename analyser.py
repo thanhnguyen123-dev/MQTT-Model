@@ -29,7 +29,13 @@ class Analyser:
         self.analyser_sub_qos_levels = [0, 1, 2] 
 
         self.received_messages = []
-        self.sys_messages = {} 
+        self.sys_data = {
+            'received_published_messages': [],
+            'sent_published_messages': [],
+            'dropped_published_messages': [],
+            'inflight_messages': [],
+            'memory_usage': []
+        } 
         self.connected = False
         
         # Attributes to store the parameters of the currently running test
@@ -94,9 +100,7 @@ class Analyser:
 
 
         if topic.startswith("$SYS/"):
-            if topic not in self.sys_messages:
-                self.sys_messages[topic] = []
-            self.sys_messages[topic].append({'payload': payload_str, 'timestamp': time.time()})
+            self.subscribe_to_sys_topics(topic, payload_str)
             return
 
         if topic.startswith("counter/"):
@@ -130,6 +134,35 @@ class Analyser:
                     print(f"Analyser ({client_id_str}): Error parsing payload content '{payload_str}' on topic {topic}. Error: {e}. Skipping this message.")
         else:
             print(f"  Received unexpected message on topic: {topic}")
+
+
+    def subscribe_to_sys_topics(self, topic: str, payload: str):
+        """
+        Subscribes to relevant system topics.
+        """
+        current_time = time.time()
+        parsed_payload = None
+        try:
+            parsed_payload = float(payload)
+        except ValueError:
+            print(f"Analyser: Error parsing payload '{payload}' for topic {topic}. Skipping this message.")
+            return
+
+        if not parsed_payload:
+            return
+
+        if topic == "$SYS/broker/load/publish/sent/1min":
+            self.sys_data['sent_published_messages'].append(parsed_payload, current_time)
+        elif topic == "$SYS/broker/load/publish/received/1min":
+            self.sys_data['received_published_messages'].append(parsed_payload, current_time)
+        elif topic == "$SYS/broker/load/publish/dropped/1min":
+            self.sys_data['dropped_published_messages'].append(parsed_payload, current_time)
+        elif topic == "$SYS/broker/messages/inflight":
+            self.sys_data['inflight_messages'].append(parsed_payload, current_time)
+        elif topic == "$SYS/broker/heap/current":
+            self.sys_data['memory_usage'].append(parsed_payload, current_time)
+        else:
+            return
 
 
     def calculate_statistics(self):
@@ -238,7 +271,8 @@ class Analyser:
             'average_out_of_order_rate': average_out_of_order_rate,
             'average_duplicate_rate': average_duplicate_rate,
             'average_mean_gap': average_mean_gap,
-            'average_stdev_gap': average_stdev_gap
+            'average_stdev_gap': average_stdev_gap,
+            'sys_data': self.sys_data
         }
 
         all_tests_results.append(publisher_stats)
@@ -314,7 +348,7 @@ class Analyser:
                                   f"(AnalyserSubQoS={self.qos}) ---")
 
                             self.received_messages.clear()
-                            self.sys_messages.clear()
+                            self.sys_data.clear()
 
                             print("Analyser: Sending configuration commands...")
                             cmd_success = True
