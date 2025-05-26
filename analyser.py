@@ -68,8 +68,12 @@ class Analyser:
     def on_message(self, client, userdata, msg):
         """Callback when a message is received."""
         topic = msg.topic
-        payload_str = msg.payload.decode()
+        payload_str = None
 
+        try:
+            payload_str = msg.payload.decode('utf-8')
+        except UnicodeDecodeError:
+            payload_str = msg.payload.decode('utf-8', errors='ignore')
 
 
         if topic.startswith("$SYS/"):
