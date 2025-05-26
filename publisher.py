@@ -29,11 +29,11 @@ class Publisher:
 
         # Subscribed topics
         self.request_topics_to_subscribe = [
-            ("request/qos", 0),
-            ("request/delay", 0),
-            ("request/messagesize", 0),
-            ("request/instancecount", 0),
-            ("request/go", 0)
+            ("request/qos"),
+            ("request/delay"),
+            ("request/messagesize"),
+            ("request/instancecount"),
+            ("request/go")
         ]
 
         # MQTT Client Setup
@@ -44,18 +44,9 @@ class Publisher:
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         """Callback for when the client connects to the broker."""
-        if reason_code == 0:
-            print(f"Instance {self.instance_id}: Connected to MQTT Broker at {self.broker_address}!")
-            try:
-                result, mid = client.subscribe(self.request_topics_to_subscribe)
-                if result != mqtt.MQTT_ERR_SUCCESS:
-                    print(f"Instance {self.instance_id}: Failed to initiate subscription request, error code {result}")
-
-            except Exception as e:
-                 print(f"Instance {self.instance_id}: Error during subscribe call: {e}")
-
-        else:
-            print(f"Instance {self.instance_id}: Failed to connect, return code {reason_code}\n")
+        print(f"Instance {self.instance_id}: Connected to MQTT Broker!")
+        for topic in self.request_topics_to_subscribe:
+            self.client.subscribe(topic)
 
 
     def on_message(self, client, userdata, msg):
@@ -95,8 +86,7 @@ class Publisher:
                         daemon=True 
                     )
                     self.active_thread.start()
-        else: 
-            print(f"Instance {self.instance_id}: Received unexpected message on topic: {topic}")
+
 
 
     def publish_message(self, qos_to_use, delay_to_use, messagesize_to_use):
@@ -124,6 +114,8 @@ class Publisher:
 
                 counter += 1
                 time.sleep(delay_to_use / 1000)
+            
+            print(f"Instance {self.instance_id}: Publishing burst completed at time: {Utils.format_time(time.time())}")
         except Exception as e:
             print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
 

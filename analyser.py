@@ -60,7 +60,7 @@ class Analyser:
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         """Callback when connection is established."""
-        print(f"Analyser Connected successfully!")
+        print(f"Analyser connected successfully!")
         client.subscribe("counter/#", qos=self.qos)
         client.subscribe("$SYS/#", qos=0)   
 
@@ -261,7 +261,7 @@ class Analyser:
         """Connects, runs all test cases, and disconnects."""
         qos_values = [0, 1, 2]
         delay_values = [0, 100]
-        message_size_values = [0]
+        message_size_values = [0, 1000, 4000]
         instance_count_values = [1, 5, 10]
 
         self.client.connect(self.broker_address, self.broker_port)
@@ -283,19 +283,19 @@ class Analyser:
                                 self.sys_data[key].clear()
 
                             self.publish_request(pub_qos, delay, msg_size, instance_count)
-                            print(f"Publishing request with Pub_QoS: {pub_qos}, delay: {delay}, messagesize: {msg_size}, instancecount: {instance_count}, Analyser_QoS: {analyser_qos}")
+                            print(f"Publishing request (delay = {delay}, messagesize = {msg_size}, instancecount = {instance_count}, pub_qos = {pub_qos}, analyser_qos = {analyser_qos})")
 
                             time.sleep(Analyser.WAIT_DURATION + 5)
                             current_test_results = self.calculate_statistics()
 
                             # print statistics
-                            print(f"Test completed for instance count {instance_count} with Pub_QoS: {pub_qos}, delay: {delay}, messagesize: {msg_size}, Analyser_QoS: {analyser_qos}")
-                            print(f"total mean rate: {current_test_results['total_mean_rate']}")
-                            print(f"average loss rate: {current_test_results['average_loss_rate']}")
-                            print(f"average out of order rate: {current_test_results['average_out_of_order_rate']}")
-                            print(f"average duplicate rate: {current_test_results['average_duplicate_rate']}")
-                            print(f"average mean gap: {current_test_results['average_mean_gap']}")
-                            print(f"average stdev gap: {current_test_results['average_stdev_gap']}")
+                            # print(f"Test completed (delay = {delay}, messagesize = {msg_size}, instancecount = {instance_count}, pub_qos = {pub_qos}, analyser_qos = {analyser_qos})")
+                            # print(f"total mean rate: {current_test_results['total_mean_rate']}")
+                            # print(f"average loss rate: {current_test_results['average_loss_rate']}")
+                            # print(f"average out of order rate: {current_test_results['average_out_of_order_rate']}")
+                            # print(f"average duplicate rate: {current_test_results['average_duplicate_rate']}")
+                            # print(f"average mean gap: {current_test_results['average_mean_gap']}")
+                            # print(f"average stdev gap: {current_test_results['average_stdev_gap']}")
                             
                         self.client.disconnect()
 
