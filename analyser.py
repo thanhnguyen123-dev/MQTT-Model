@@ -19,14 +19,9 @@ class Analyser:
         self.broker_address = broker_address
         self.broker_port = broker_port
         self.client_id_base = "analyser_main"   
-        self.client = None
-
-        # Test parameters
-        self.pub_qos_levels = [0, 2]
-        self.delays_ms = [0]
-        self.message_sizes_bytes = [0]
-        self.instance_counts_active = [10]
-        self.analyser_sub_qos_levels = [0, 2] 
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="Analyser")
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
 
         self.received_messages = []
         self.sys_data = {
@@ -35,15 +30,12 @@ class Analyser:
             'dropped_published_messages': [],
             'memory_usage': []
         } 
-        self.connected = False
         
-        # Attributes to store the parameters of the currently running test
-        # These will be updated by run_all_tests and used by on_message for filtering
-        self.pub_qos = None 
-        self.delay = None 
-        self.message_size = None 
-        self.instance_count = None    
-        self.qos = None 
+        self.pub_qos = 0 
+        self.delay = 0 
+        self.message_size = 0 
+        self.instance_count = 0    
+        self.qos = 0 
 
 
     def parse_data_topic(self, topic_str):
@@ -67,35 +59,16 @@ class Analyser:
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         """Callback when connection is established."""
-        if reason_code == 0:
-            print(f"Analyser ({client._client_id.decode()}): Connected successfully!")
-            self.connected = True
-            client.subscribe("counter/#", qos=self.qos)
-            client.subscribe("$SYS/#", qos=0)   
-        else:
-            print(f"Analyser ({client._client_id.decode()}): Failed to connect, return code {reason_code}\n")
-            self.connected = False
+        print(f"Analyser Connected successfully!")
+        client.subscribe("counter/#", qos=self.qos)
+        client.subscribe("$SYS/#", qos=0)   
 
 
     def on_message(self, client, userdata, msg):
         """Callback when a message is received."""
         topic = msg.topic
-        payload_str = None 
+        payload_str = msg.payload.decode()
 
-        try:
-            payload_str = msg.payload.decode('utf-8')
-        except UnicodeDecodeError as e:
-            client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
-            try:
-                payload_str = msg.payload.decode('latin-1')
-                print(f"Analyser ({client_id_str}): Successfully decoded with latin-1 as fallback.")
-            except Exception as e2:
-                print(f"Analyser ({client_id_str}): Also failed to decode with latin-1. Error: {e2}. Skipping message processing for this message.")
-                return 
-        except Exception as e: 
-            client_id_str = client._client_id.decode() if isinstance(client._client_id, bytes) else client._client_id
-            print(f"Analyser ({client_id_str}): An unexpected error occurred during payload decoding on topic {topic}. Error: {e}. Skipping message.")
-            return
 
 
         if topic.startswith("$SYS/"):
@@ -118,7 +91,6 @@ class Analyser:
                         pub_message_counter = int(payload_content[0])
                         pub_message_timestamp = float(payload_content[1])
                 
-                
                         self.received_messages.append({
                             'topic': topic,
                             'parsed_instance_id': parsed_topic_data["instance_id"],
@@ -139,15 +111,14 @@ class Analyser:
         """
         Subscribes to relevant system topics.
         """
-        # print(f"Analyser Raw SYS In: Topic='{topic}', Payload='{payload}'") 
         current_time = time.time()
         parsed_payload = None
         tuple_data = None
+
         try:
             parsed_payload = float(payload)
             tuple_data = (parsed_payload, current_time)
         except ValueError:
-            # print(f"Analyser: Error parsing payload '{payload}' for topic {topic}. Skipping this message.")
             return
 
         if topic == "$SYS/broker/load/publish/sent/1min":
@@ -250,11 +221,11 @@ class Analyser:
             all_instances_stdev_gaps.append(stdev_gap_for_instance)
 
         # Calculate the average (per-publisher)
-        average_loss_rate = mean(all_instances_loss_percentages) if all_instances_loss_percentages and self.instance_count > 0 else 0.0
-        average_out_of_order_rate = mean(all_instances_out_of_order_percentages) if all_instances_out_of_order_percentages and self.instance_count > 0 else 0.0
-        average_duplicate_rate = mean(all_instances_duplicate_percentages) if all_instances_duplicate_percentages and self.instance_count > 0 else 0.0
-        average_mean_gap = mean(all_instances_mean_gaps) if all_instances_mean_gaps and self.instance_count > 0 else 0.0
-        average_stdev_gap = mean(all_instances_stdev_gaps) if all_instances_stdev_gaps and self.instance_count > 0 else 0.0
+        average_loss_rate = mean(all_instances_loss_percentages) if all_instances_loss_percentages else 0.0
+        average_out_of_order_rate = mean(all_instances_out_of_order_percentages) if all_instances_out_of_order_percentages else 0.0
+        average_duplicate_rate = mean(all_instances_duplicate_percentages) if all_instances_duplicate_percentages else 0.0
+        average_mean_gap = mean(all_instances_mean_gaps) if all_instances_mean_gaps else 0.0
+        average_stdev_gap = mean(all_instances_stdev_gaps) if all_instances_stdev_gaps else 0.0
 
         publisher_stats = {
             'instance_count': self.instance_count,
@@ -276,120 +247,58 @@ class Analyser:
         return publisher_stats
 
 
-    def publish_command(self, topic, payload, qos=1, retain=False):
-        """Helper function to publish commands."""
-        if not self.client or not self.client.is_connected():
-            print("Error: Analyser client not connected. Cannot publish command.")
-            return False
-        
-        msg_info = self.client.publish(topic, str(payload), qos=qos, retain=retain)
-        
-        if qos > 0:
-            try:
-                msg_info.wait_for_publish(timeout=5.0)
-                if msg_info.rc != mqtt.MQTT_ERR_SUCCESS:
-                    print(f"Warning: Publish command {topic}={payload} (QoS {qos}) not confirmed. RC: {msg_info.rc}")
-                    return False
-            except Exception as e: # Catch broader exceptions for wait_for_publish
-                print(f"Warning: Exception waiting for publish confirmation for {topic}={payload}: {e}")
-                return False
-        return True
+    def publish_request(self, qos, delay, messagesize, instancecount):
+        self.client.loop_start()
+        self.client.publish("request/qos", qos, qos=self.qos)
+        self.client.publish("request/delay", delay, qos=self.qos)
+        self.client.publish("request/messagesize", messagesize, qos=self.qos)
+        self.client.publish("request/instancecount", instancecount, qos=self.qos)
+        self.client.publish("request/go", "start_burst", qos=self.qos)
 
 
     def run_all_tests(self):
         """Connects, runs all test cases, and disconnects."""
+        qos_values = [0, 1, 2]
+        delay_values = [0, 100]
+        message_size_values = [0]
+        instance_count_values = [1, 5, 10]
+
+        self.client.connect(self.broker_address, self.broker_port)
         
-        for sub_qos in self.analyser_sub_qos_levels:
-            print(f"\n{'='*10} Starting Test Suite for Analyser Subscription QoS = {sub_qos} {'='*10}")
-            self.qos = sub_qos # Set QoS for 'counter/#' for this suite
-
-            if self.client and self.client.is_connected():
-                self.client.loop_stop()
-                self.client.disconnect()
-                print(f"Analyser: Disconnected previous client instance.")
-            
-            self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"{self.client_id_base}_subqos{sub_qos}")
-            self.client.on_connect = self.on_connect
-            self.client.on_message = self.on_message
-            self.connected = False
-
-            try:
-                self.client.connect(self.broker_address, self.broker_port)
-                self.client.loop_start()
-
-                connection_timeout = 10
-                start_conn_time = time.time()
-                while not self.connected and time.time() - start_conn_time < connection_timeout:
-                    time.sleep(0.1)
-                
-                if not self.connected:
-                    print(f"Analyser ({self.client._client_id.decode()}): Connection failed or timed out for sub_qos={sub_qos}. Skipping this suite.")
-                    if self.client: self.client.loop_stop()
-                    continue
-            
-            except Exception as e:
-                print(f"Analyser ({self.client._client_id.decode()}): Error connecting client for sub_qos={sub_qos}: {e}")
-                if self.client: self.client.loop_stop()
-                continue
-
-            for pub_qos_test_val in self.pub_qos_levels:
-                self.pub_qos = pub_qos_test_val
-                for delay_test_val in self.delays_ms:
-                    self.delay = delay_test_val
-                    for msg_size_test_val in self.message_sizes_bytes:
-                        self.message_size = msg_size_test_val
-                        for instance_count_test_val in self.instance_counts_active:
-                            self.instance_count = instance_count_test_val
-                            print(f"\n--- Running Test: PubQoS={self.pub_qos}, Delay={self.delay}ms, "
-                                  f"Size={self.message_size}, Instances={self.instance_count} "
-                                  f"(AnalyserSubQoS={self.qos}) ---")
+        for delay in delay_values:
+            self.delay = delay
+            for msg_size in message_size_values:
+                self.message_size = msg_size
+                for instance_count in instance_count_values:
+                    self.instance_count = instance_count
+                    for analyser_qos in qos_values:
+                        self.qos = analyser_qos
+                        self.client.connect(self.broker_address, self.broker_port)
+                        for pub_qos in qos_values:
+                            self.pub_qos = pub_qos
 
                             self.received_messages.clear()
                             for key in self.sys_data:
                                 self.sys_data[key].clear()
 
-                            print("Analyser: Sending configuration commands...")
-                            cmd_success = True
-                            cmd_success &= self.publish_command("request/qos", self.pub_qos)
-                            cmd_success &= self.publish_command("request/delay", self.delay)
-                            cmd_success &= self.publish_command("request/messagesize", self.message_size)
-                            cmd_success &= self.publish_command("request/instancecount", self.instance_count)
+                            self.publish_request(pub_qos, delay, msg_size, instance_count)
+                            print(f"publish in progress for instance count {instance_count} with publisher_qos: {pub_qos}, delay: {delay}, messagesize: {msg_size}, analyser_qos: {analyser_qos}")
+
+                            time.sleep(WAIT_DURATION + 5)
+                            current_test_results = self.calculate_statistics()
+
+                            # print statistics
+                            print(f"Test completed for instance count {instance_count} with publisher_qos: {pub_qos}, delay: {delay}, messagesize: {msg_size}, analyser_qos: {analyser_qos}")
+                            print(f"total mean rate: {current_test_results['total_mean_rate']}")
+                            print(f"average loss rate: {current_test_results['average_loss_rate']}")
+                            print(f"average out of order rate: {current_test_results['average_out_of_order_rate']}")
+                            print(f"average duplicate rate: {current_test_results['average_duplicate_rate']}")
+                            print(f"average mean gap: {current_test_results['average_mean_gap']}")
+                            print(f"average stdev gap: {current_test_results['average_stdev_gap']}")
                             
-                            if not cmd_success:
-                                print("Error sending one or more configuration commands. Skipping this test.")
-                                continue
+                        self.client.disconnect()
 
-                            time.sleep(1.5) 
-
-                            print("Analyser: Sending 'go' signal...")
-                            if not self.publish_command("request/go", "start_burst"):
-                                print("Error sending 'go' signal. Skipping this test.")
-                                continue
-                                
-                            wait_duration = WAIT_DURATION + 5
-                            print(f"Analyser: Waiting {wait_duration} seconds for test data...")
-                            time.sleep(wait_duration)
-                            print("Analyser: Test wait period finished.")
-
-                            current_test_stats = self.calculate_statistics()
-
-                            print(f"--- Test Summary (PubQoS={self.pub_qos}, Delay={self.delay}, Size={self.message_size}, Inst={self.instance_count}, SubQoS={self.qos}) ---")
-                            print(f"  Received {len(self.received_messages)} relevant data messages.")
-                            
-                            print(f"  Total Mean Rate: {current_test_stats['total_mean_rate']:.2f} messages/second")
-                            print(f"  Average Loss Rate: {current_test_stats['average_loss_rate']:.2f} %")
-                            print(f"  Average Out of Order Rate: {current_test_stats['average_out_of_order_rate']:.2f} %")
-                            print(f"  Average Duplicate Rate: {current_test_stats['average_duplicate_rate']:.2f} %")
-                            print(f"  Average Mean Gap: {current_test_stats['average_mean_gap']:.2f} ms")
-                            print(f"  Average Stdev Gap: {current_test_stats['average_stdev_gap']:.2f} ms")
-
-
-            if self.client and self.client.is_connected():
-                self.client.loop_stop()
-                self.client.disconnect()
-                print(f"Analyser ({self.client._client_id.decode()}): Disconnected after suite for sub_qos={sub_qos}.")
-            time.sleep(1)
-
+        
         self.save_results_to_json()
         print("\n===== All Test Suites Completed =====")
 

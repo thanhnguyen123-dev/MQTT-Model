@@ -1,82 +1,90 @@
 [
     {
         "instance_count": 10,
-        "pub_qos": 0,
-        "delay": 0,
-        "message_size": 0,
-        "sub_qos": 0,
-        "total_messages_received": 0,
-        "total_mean_rate": 0,
-        "average_loss_rate": 100.0,
-        "average_out_of_order_rate": 0.0,
-        "average_duplicate_rate": 0.0,
-        "average_mean_gap": 0.0,
-        "average_stdev_gap": 0.0,
-        "sys_data": {
-            "received_published_messages": [],
-            "sent_published_messages": [],
-            "dropped_published_messages": [],
-            "memory_usage": []
-        }
-    },
-    {
-        "instance_count": 10,
         "pub_qos": 2,
-        "delay": 0,
-        "message_size": 0,
-        "sub_qos": 0,
-        "total_messages_received": 0,
-        "total_mean_rate": 0,
-        "average_loss_rate": 100.0,
-        "average_out_of_order_rate": 0.0,
-        "average_duplicate_rate": 0.0,
-        "average_mean_gap": 0.0,
-        "average_stdev_gap": 0.0,
-        "sys_data": {
-            "received_published_messages": [],
-            "sent_published_messages": [],
-            "dropped_published_messages": [],
-            "memory_usage": []
-        }
-    },
-    {
-        "instance_count": 10,
-        "pub_qos": 0,
-        "delay": 0,
+        "delay": 100,
         "message_size": 0,
         "sub_qos": 2,
-        "total_messages_received": 0,
-        "total_mean_rate": 0,
-        "average_loss_rate": 100.0,
+        "total_messages_received": 2895,
+        "total_mean_rate": 96.5,
+        "average_loss_rate": 3.5,
         "average_out_of_order_rate": 0.0,
         "average_duplicate_rate": 0.0,
-        "average_mean_gap": 0.0,
-        "average_stdev_gap": 0.0,
+        "average_mean_gap": 103.86800801625668,
+        "average_stdev_gap": 3.943123580068375,
         "sys_data": {
-            "received_published_messages": [],
-            "sent_published_messages": [],
-            "dropped_published_messages": [],
-            "memory_usage": []
-        }
-    },
-    {
-        "instance_count": 10,
-        "pub_qos": 2,
-        "delay": 0,
-        "message_size": 0,
-        "sub_qos": 2,
-        "total_messages_received": 0,
-        "total_mean_rate": 0,
-        "average_loss_rate": 100.0,
-        "average_out_of_order_rate": 0.0,
-        "average_duplicate_rate": 0.0,
-        "average_mean_gap": 0.0,
-        "average_stdev_gap": 0.0,
-        "sys_data": {
-            "received_published_messages": [],
-            "sent_published_messages": [],
-            "dropped_published_messages": [],
-            "memory_usage": []
+            "received_published_messages": [
+                [
+                    2.16,
+                    1748268720.522864
+                ],
+                [
+                    838.74,
+                    1748268729.944607
+                ],
+                [
+                    1665.84,
+                    1748268740.963215
+                ],
+                [
+                    2231.96,
+                    1748268751.931999
+                ]
+            ],
+            "sent_published_messages": [
+                [
+                    27.39,
+                    1748268720.522885
+                ],
+                [
+                    1795.36,
+                    1748268729.944694
+                ],
+                [
+                    3440.77,
+                    1748268740.963255
+                ],
+                [
+                    4567.53,
+                    1748268751.932043
+                ]
+            ],
+            "dropped_published_messages": [
+                [
+                    0.74,
+                    1748268720.522845
+                ],
+                [
+                    0.62,
+                    1748268729.944438
+                ],
+                [
+                    0.52,
+                    1748268740.9631722
+                ],
+                [
+                    0.43,
+                    1748268751.931942
+                ]
+            ],
+            "memory_usage": [
+                [
+                    850032.0,
+                    1748268720.523231
+                ],
+                [
+                    851728.0,
+                    1748268729.9465768
+                ],
+                [
+                    851872.0,
+                    1748268740.967873
+                ],
+                [
+                    851616.0,
+                    1748268751.933328
+                ]
+            ]
         }
     }
 ]

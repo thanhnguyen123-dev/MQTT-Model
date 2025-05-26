@@ -4,7 +4,7 @@ import threading
 import sys 
 from utils import Utils
 
-WAIT_DURATION = 5
+WAIT_DURATION = 30
 
 class Publisher:
     """
@@ -20,7 +20,7 @@ class Publisher:
         self.broker_port = broker_port
         self.client_id = f"publisher_{self.instance_id:02d}" 
 
-        # Configuration storage
+        # Default configuration, will be updated later
         self.qos = 0
         self.delay = 100 
         self.messagesize = 0
@@ -67,29 +67,29 @@ class Publisher:
         if topic == "request/qos":
             try:
                 self.qos = int(payload)
-                print(f"Instance {self.instance_id}: Updated qos to: {self.qos} ({topic})")
+                # print(f"Instance {self.instance_id}: Updated qos to: {self.qos} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid QoS value: {payload}")
         elif topic == "request/delay":
             try:
                 self.delay = int(payload)
-                print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ({topic})")
+                # print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid delay value: {payload}")
         elif topic == "request/messagesize":
             try:
                 self.messagesize = int(payload)
-                print(f"Instance {self.instance_id}: Updated messagesize to: {self.messagesize} ({topic})")
+                # print(f"Instance {self.instance_id}: Updated messagesize to: {self.messagesize} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid messagesize value: {payload}")
         elif topic == "request/instancecount":
              try:
                 self.instance_count = int(payload)
-                print(f"Instance {self.instance_id}: Updated instancecount to: {self.instance_count} ({topic})")
+                # print(f"Instance {self.instance_id}: Updated instancecount to: {self.instance_count} ({topic})")
              except ValueError:
                 print(f"Instance {self.instance_id}: Invalid instancecount value: {payload}")
         elif topic == "request/go":
-            print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
+            # print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
             if self.instance_id <= self.instance_count:
                 if self.active_thread and self.active_thread.is_alive():
                     print(f"Instance {self.instance_id}: Warning - Previous burst thread still running.")
@@ -100,8 +100,6 @@ class Publisher:
                         daemon=True 
                     )
                     self.active_thread.start()
-            # else:
-            #     print(f"Instance {self.instance_id}: Is inactive (ID {self.instance_id} > Count {self.instance_count}). Doing nothing.")
         else: 
             print(f"Instance {self.instance_id}: Received unexpected message on topic: {topic}")
 
@@ -133,8 +131,8 @@ class Publisher:
                 time.sleep(delay_to_use / 1000)
         except Exception as e:
              print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
-        finally:
-            print(f"Instance {self.instance_id}: Finished {WAIT_DURATION}-second burst. Published {counter} messages. \n")
+        # finally:
+        #     print(f"Instance {self.instance_id}: Finished {WAIT_DURATION}-second burst. Published {counter} messages. \n")
 
 
     def run(self):
