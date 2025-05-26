@@ -4,13 +4,13 @@ import threading
 import sys 
 from utils import Utils
 
-WAIT_DURATION = 30
-
 class Publisher:
     """
     Represents a single instance of an MQTT publisher client
     that listens for commands and publishes data bursts.
     """
+    WAIT_DURATION = 30
+
     def __init__(self, instance_id, broker_address="localhost", broker_port=1883):
         if not 1 <= instance_id <= 10:
             raise ValueError("Instance ID must be between 1 and 10")
@@ -67,29 +67,24 @@ class Publisher:
         if topic == "request/qos":
             try:
                 self.qos = int(payload)
-                # print(f"Instance {self.instance_id}: Updated qos to: {self.qos} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid QoS value: {payload}")
         elif topic == "request/delay":
             try:
                 self.delay = int(payload)
-                # print(f"Instance {self.instance_id}: Updated delay to: {self.delay} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid delay value: {payload}")
         elif topic == "request/messagesize":
             try:
                 self.messagesize = int(payload)
-                # print(f"Instance {self.instance_id}: Updated messagesize to: {self.messagesize} ({topic})")
             except ValueError:
                 print(f"Instance {self.instance_id}: Invalid messagesize value: {payload}")
         elif topic == "request/instancecount":
-             try:
+            try:
                 self.instance_count = int(payload)
-                # print(f"Instance {self.instance_id}: Updated instancecount to: {self.instance_count} ({topic})")
-             except ValueError:
+            except ValueError:
                 print(f"Instance {self.instance_id}: Invalid instancecount value: {payload}")
         elif topic == "request/go":
-            # print(f"Instance {self.instance_id}: Received a signal, ready to publish! ({topic})")
             if self.instance_id <= self.instance_count:
                 if self.active_thread and self.active_thread.is_alive():
                     print(f"Instance {self.instance_id}: Warning - Previous burst thread still running.")
@@ -117,7 +112,7 @@ class Publisher:
         print(f"Instance {self.instance_id}: Publishing data to topic: {data_topic} at time: {formatted_time}")
 
         try:
-            while time.time() - start_time < WAIT_DURATION:
+            while time.time() - start_time < Publisher.WAIT_DURATION:
                 if not self.client.is_connected():
                     print(f"Instance {self.instance_id}: Client disconnected during burst. Stopping thread.")
                     break
@@ -130,9 +125,7 @@ class Publisher:
                 counter += 1
                 time.sleep(delay_to_use / 1000)
         except Exception as e:
-             print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
-        # finally:
-        #     print(f"Instance {self.instance_id}: Finished {WAIT_DURATION}-second burst. Published {counter} messages. \n")
+            print(f"Instance {self.instance_id}: Error during publishing burst: {e}")
 
 
     def run(self):
@@ -162,5 +155,5 @@ if __name__ == "__main__":
         print(f"Error: Instance ID must be an integer. Received: {sys.argv[1]}")
         sys.exit(1)
     except Exception as e:
-         print(f"Failed to start publisher instance {sys.argv[1]}: {e}")
-         sys.exit(1)
+        print(f"Failed to start publisher instance {sys.argv[1]}: {e}")
+        sys.exit(1)

@@ -1,20 +1,21 @@
 import paho.mqtt.client as mqtt
 import time
 import sys
-from publisher import WAIT_DURATION
+from publisher import Publisher
 from utils import Utils
 import json
 from collections import Counter
 from statistics import mean, stdev
 
 
-all_tests_results = []
-
 class Analyser:
     """
     Controls MQTT publisher instances by iterating through a full suite of tests,
     subscribing to 'counter/#' and '$SYS/#', and filtering relevant messages.
     """
+    all_tests_results = []
+    WAIT_DURATION = Publisher.WAIT_DURATION
+
     def __init__(self, broker_address="localhost", broker_port=1883):
         self.broker_address = broker_address
         self.broker_port = broker_port
@@ -140,7 +141,7 @@ class Analyser:
         num_received = len(self.received_messages)
 
         # Calculate total mean rate
-        total_mean_rate = num_received / WAIT_DURATION if num_received > 0 else 0
+        total_mean_rate = num_received / Analyser.WAIT_DURATION if num_received > 0 else 0
 
         instance_messages_map = {}
         for msg_data in self.received_messages:
@@ -165,7 +166,7 @@ class Analyser:
             actual_count = len(set(received_counters))
             expected_count = 0
             if self.delay > 0:
-                expected_count  = int(round(WAIT_DURATION * 1000 / self.delay))
+                expected_count  = int(round(Analyser.WAIT_DURATION * 1000 / self.delay))
             else:
                 expected_count = max(received_counters) + 1 if actual_count > 0 else 1
 
@@ -243,7 +244,7 @@ class Analyser:
             'sys_data': self.sys_data
         }
 
-        all_tests_results.append(publisher_stats)
+        Analyser.all_tests_results.append(publisher_stats)
         return publisher_stats
 
 
@@ -282,13 +283,13 @@ class Analyser:
                                 self.sys_data[key].clear()
 
                             self.publish_request(pub_qos, delay, msg_size, instance_count)
-                            print(f"publish in progress for instance count {instance_count} with publisher_qos: {pub_qos}, delay: {delay}, messagesize: {msg_size}, analyser_qos: {analyser_qos}")
+                            print(f"Publishing request with Pub_QoS: {pub_qos}, delay: {delay}, messagesize: {msg_size}, instancecount: {instance_count}, Analyser_QoS: {analyser_qos}")
 
-                            time.sleep(WAIT_DURATION + 5)
+                            time.sleep(Analyser.WAIT_DURATION + 5)
                             current_test_results = self.calculate_statistics()
 
                             # print statistics
-                            print(f"Test completed for instance count {instance_count} with publisher_qos: {pub_qos}, delay: {delay}, messagesize: {msg_size}, analyser_qos: {analyser_qos}")
+                            print(f"Test completed for instance count {instance_count} with Pub_QoS: {pub_qos}, delay: {delay}, messagesize: {msg_size}, Analyser_QoS: {analyser_qos}")
                             print(f"total mean rate: {current_test_results['total_mean_rate']}")
                             print(f"average loss rate: {current_test_results['average_loss_rate']}")
                             print(f"average out of order rate: {current_test_results['average_out_of_order_rate']}")
@@ -307,7 +308,7 @@ class Analyser:
         """Saves all test results to a JSON file."""
         json_filename = "all_tests_results.json"
         with open(json_filename, "w") as f:
-            json.dump(all_tests_results, f, indent=4)
+            json.dump(Analyser.all_tests_results, f, indent=4)
 
 if __name__ == "__main__":
     analyser = Analyser()
