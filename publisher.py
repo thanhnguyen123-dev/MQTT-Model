@@ -100,8 +100,8 @@ class Publisher:
                         daemon=True 
                     )
                     self.active_thread.start()
-            else:
-                 print(f"Instance {self.instance_id}: Is inactive (ID {self.instance_id} > Count {self.instance_count}). Doing nothing.")
+            # else:
+            #     print(f"Instance {self.instance_id}: Is inactive (ID {self.instance_id} > Count {self.instance_count}). Doing nothing.")
         else: 
             print(f"Instance {self.instance_id}: Received unexpected message on topic: {topic}")
 

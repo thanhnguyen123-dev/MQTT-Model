@@ -1,47 +1,20 @@
 #!/bin/bash
-# start_publishers.sh (with debugging)
 
-set -e # Exit immediately if a command exits with a non-zero status.
+# Script to start 10 instances of the MQTT publisher
 
-NUM_INSTANCES_TO_RUN=${1:-2} # Let's default to 2 for this test
-PUBLISHER_SCRIPT_PATH="./publisher.py"
-VENV_PATH="./mqtt_venv/bin/activate" # YOUR VENV PATH
+echo "Starting 10 MQTT Publisher instances..."
 
-if [ ! -f "${VENV_PATH}" ]; then
-    echo "ERROR: Virtual environment activation script not found at ${VENV_PATH}"
-    exit 1
-fi
-
-echo "Attempting to activate virtual environment: ${VENV_PATH}"
-source "${VENV_PATH}"
-echo "Virtual environment source command exit status: $?"
-
-echo "-----------------------------------------------------"
-echo "DEBUG INFO AFTER VENV ACTIVATION (from script's perspective):"
-echo "Using python3 from: $(which python3)"
-echo "Python3 version: $(python3 --version)" # Changed -V to --version for broader compatibility
-echo "PYTHONPATH: ${PYTHONPATH}"
-echo "PATH: ${PATH}"
-echo "-----------------------------------------------------"
-
-# Test Paho import directly and log it for the first instance for debugging
-echo "Attempting to import Paho for instance 1 (check publisher_1.log)..."
-python3 -c "import paho.mqtt.client; print('Instance 1: Paho-MQTT imported successfully by Python interpreter inside script.')" > "publisher_1.log" 2>&1
-
-echo "Launching ${NUM_INSTANCES_TO_RUN} publisher instances..."
-
-for i in $(seq 1 $NUM_INSTANCES_TO_RUN); do
-  echo "Starting publisher instance $i..."
-  if [ "$i" -eq 1 ]; then
-    # Append the actual publisher script output to the log that already has the import test
-    python3 "${PUBLISHER_SCRIPT_PATH}" $i >> "publisher_${i}.log" 2>&1 &
-  else
-    # For other instances, create/overwrite their log files
-    # Let's add an import test for instance 2 as well for comparison
-    python3 -c "import paho.mqtt.client; print('Instance ${i}: Paho-MQTT imported successfully by Python interpreter inside script.')" > "publisher_${i}.log" 2>&1
-    python3 "${PUBLISHER_SCRIPT_PATH}" $i >> "publisher_${i}.log" 2>&1 &
-  fi
+# Loop from 1 to 10
+for i in {1..10}
+do
+#    echo "Starting publisher instance $i (pub-$i)..."
+   # Assuming your publisher script is named publisher.py and is in the current directory
+   # The '&' at the end runs the command in the background
+   python3 publisher.py "$i" &
+   # Optional: Add a small delay if needed, though usually not necessary for just launching
+   # sleep 0.1
 done
 
-echo "All ${NUM_INSTANCES_TO_RUN} publisher instances launched in the background."
-# ... (rest of the script) ...
+# echo "All 10 publisher instances have been launched in the background."
+# echo "They will connect to the broker and wait for commands from the analyser."
+# echo "To stop them, you might need to identify their Process IDs (PIDs) or use a command like 'pkill -f \"python3 publisher.py\"'."

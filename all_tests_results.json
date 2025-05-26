@@ -1,22 +1,82 @@
 [
     {
-        "instance_count": 1,
+        "instance_count": 10,
         "pub_qos": 0,
         "delay": 0,
         "message_size": 0,
         "sub_qos": 0,
-        "total_mean_rate": 105731.13333333333,
-        "average_loss_rate": 32.71899605829473,
-        "total_messages_received": 3171934
+        "total_messages_received": 0,
+        "total_mean_rate": 0,
+        "average_loss_rate": 100.0,
+        "average_out_of_order_rate": 0.0,
+        "average_duplicate_rate": 0.0,
+        "average_mean_gap": 0.0,
+        "average_stdev_gap": 0.0,
+        "sys_data": {
+            "received_published_messages": [],
+            "sent_published_messages": [],
+            "dropped_published_messages": [],
+            "memory_usage": []
+        }
     },
     {
-        "instance_count": 1,
-        "pub_qos": 1,
+        "instance_count": 10,
+        "pub_qos": 2,
         "delay": 0,
         "message_size": 0,
         "sub_qos": 0,
-        "total_mean_rate": 2655.3,
-        "average_loss_rate": 99.10105109278508,
-        "total_messages_received": 79659
+        "total_messages_received": 0,
+        "total_mean_rate": 0,
+        "average_loss_rate": 100.0,
+        "average_out_of_order_rate": 0.0,
+        "average_duplicate_rate": 0.0,
+        "average_mean_gap": 0.0,
+        "average_stdev_gap": 0.0,
+        "sys_data": {
+            "received_published_messages": [],
+            "sent_published_messages": [],
+            "dropped_published_messages": [],
+            "memory_usage": []
+        }
+    },
+    {
+        "instance_count": 10,
+        "pub_qos": 0,
+        "delay": 0,
+        "message_size": 0,
+        "sub_qos": 2,
+        "total_messages_received": 0,
+        "total_mean_rate": 0,
+        "average_loss_rate": 100.0,
+        "average_out_of_order_rate": 0.0,
+        "average_duplicate_rate": 0.0,
+        "average_mean_gap": 0.0,
+        "average_stdev_gap": 0.0,
+        "sys_data": {
+            "received_published_messages": [],
+            "sent_published_messages": [],
+            "dropped_published_messages": [],
+            "memory_usage": []
+        }
+    },
+    {
+        "instance_count": 10,
+        "pub_qos": 2,
+        "delay": 0,
+        "message_size": 0,
+        "sub_qos": 2,
+        "total_messages_received": 0,
+        "total_mean_rate": 0,
+        "average_loss_rate": 100.0,
+        "average_out_of_order_rate": 0.0,
+        "average_duplicate_rate": 0.0,
+        "average_mean_gap": 0.0,
+        "average_stdev_gap": 0.0,
+        "sys_data": {
+            "received_published_messages": [],
+            "sent_published_messages": [],
+            "dropped_published_messages": [],
+            "memory_usage": []
+        }
     }
 ]

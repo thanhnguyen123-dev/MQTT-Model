@@ -22,18 +22,17 @@ class Analyser:
         self.client = None
 
         # Test parameters
-        self.pub_qos_levels = [0, 1, 2]
-        self.delays_ms = [0, 100]
-        self.message_sizes_bytes = [0, 1000, 4000]
-        self.instance_counts_active = [1]
-        self.analyser_sub_qos_levels = [0, 1, 2] 
+        self.pub_qos_levels = [0, 2]
+        self.delays_ms = [0]
+        self.message_sizes_bytes = [0]
+        self.instance_counts_active = [10]
+        self.analyser_sub_qos_levels = [0, 2] 
 
         self.received_messages = []
         self.sys_data = {
             'received_published_messages': [],
             'sent_published_messages': [],
             'dropped_published_messages': [],
-            'inflight_messages': [],
             'memory_usage': []
         } 
         self.connected = False
@@ -140,27 +139,25 @@ class Analyser:
         """
         Subscribes to relevant system topics.
         """
+        # print(f"Analyser Raw SYS In: Topic='{topic}', Payload='{payload}'") 
         current_time = time.time()
         parsed_payload = None
+        tuple_data = None
         try:
             parsed_payload = float(payload)
+            tuple_data = (parsed_payload, current_time)
         except ValueError:
-            print(f"Analyser: Error parsing payload '{payload}' for topic {topic}. Skipping this message.")
-            return
-
-        if not parsed_payload:
+            # print(f"Analyser: Error parsing payload '{payload}' for topic {topic}. Skipping this message.")
             return
 
         if topic == "$SYS/broker/load/publish/sent/1min":
-            self.sys_data['sent_published_messages'].append(parsed_payload, current_time)
+            self.sys_data['sent_published_messages'].append(tuple_data)
         elif topic == "$SYS/broker/load/publish/received/1min":
-            self.sys_data['received_published_messages'].append(parsed_payload, current_time)
+            self.sys_data['received_published_messages'].append(tuple_data)
         elif topic == "$SYS/broker/load/publish/dropped/1min":
-            self.sys_data['dropped_published_messages'].append(parsed_payload, current_time)
-        elif topic == "$SYS/broker/messages/inflight":
-            self.sys_data['inflight_messages'].append(parsed_payload, current_time)
+            self.sys_data['dropped_published_messages'].append(tuple_data)
         elif topic == "$SYS/broker/heap/current":
-            self.sys_data['memory_usage'].append(parsed_payload, current_time)
+            self.sys_data['memory_usage'].append(tuple_data)
         else:
             return
 
@@ -348,7 +345,8 @@ class Analyser:
                                   f"(AnalyserSubQoS={self.qos}) ---")
 
                             self.received_messages.clear()
-                            self.sys_data.clear()
+                            for key in self.sys_data:
+                                self.sys_data[key].clear()
 
                             print("Analyser: Sending configuration commands...")
                             cmd_success = True
@@ -361,7 +359,7 @@ class Analyser:
                                 print("Error sending one or more configuration commands. Skipping this test.")
                                 continue
 
-                            # time.sleep(1.5) 
+                            time.sleep(1.5) 
 
                             print("Analyser: Sending 'go' signal...")
                             if not self.publish_command("request/go", "start_burst"):
@@ -390,7 +388,7 @@ class Analyser:
                 self.client.loop_stop()
                 self.client.disconnect()
                 print(f"Analyser ({self.client._client_id.decode()}): Disconnected after suite for sub_qos={sub_qos}.")
-            # time.sleep(1)
+            time.sleep(1)
 
         self.save_results_to_json()
         print("\n===== All Test Suites Completed =====")
