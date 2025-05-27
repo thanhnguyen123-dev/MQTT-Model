@@ -18,8 +18,7 @@ class Analyser:
 
     def __init__(self, broker_address="localhost", broker_port=1883):
         self.broker_address = broker_address
-        self.broker_port = broker_port
-        self.client_id_base = "analyser_main"   
+        self.broker_port = broker_port  
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="Analyser")
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
@@ -75,7 +74,6 @@ class Analyser:
         except UnicodeDecodeError:
             payload_str = msg.payload.decode('utf-8', errors='ignore')
 
-
         if topic.startswith("$SYS/"):
             self.subscribe_to_sys_topics(topic, payload_str)
             return
@@ -84,12 +82,10 @@ class Analyser:
             parsed_topic_data = self.parse_data_topic(topic)
             if not parsed_topic_data or payload_str is None:
                 return
-
             if (parsed_topic_data["pub_qos"] == self.pub_qos and
                 parsed_topic_data["delay"] == self.delay and
                 parsed_topic_data["msg_size"] == self.message_size and
                 parsed_topic_data["instance_id"] <= self.instance_count):
-
                 try:
                     payload_content = payload_str.split(':')
                     if len(payload_content) == 3:
@@ -157,11 +153,13 @@ class Analyser:
                 'timestamp': msg_data['analyser_timestamp_received']
             })
         
+        # Statistics for all instances
         all_instances_loss_percentages = []
         all_instances_out_of_order_percentages = []
         all_instances_duplicate_percentages = []
         all_instances_mean_gaps = []
         all_instances_stdev_gaps = []
+
         for instance_id in range(1, self.instance_count + 1):
             instance_messages = instance_messages_map.get(instance_id, [])
             received_counters = [msg['counter'] for msg in instance_messages]
@@ -290,17 +288,7 @@ class Analyser:
                             print(f"Publishing request (delay = {delay}, messagesize = {msg_size}, instancecount = {instance_count}, pub_qos = {pub_qos}, analyser_qos = {analyser_qos})")
 
                             time.sleep(Analyser.WAIT_DURATION + 5)
-                            current_test_results = self.calculate_statistics()
-
-                            # print statistics
-                            # print(f"Test completed (delay = {delay}, messagesize = {msg_size}, instancecount = {instance_count}, pub_qos = {pub_qos}, analyser_qos = {analyser_qos})")
-                            # print(f"total mean rate: {current_test_results['total_mean_rate']}")
-                            # print(f"average loss rate: {current_test_results['average_loss_rate']}")
-                            # print(f"average out of order rate: {current_test_results['average_out_of_order_rate']}")
-                            # print(f"average duplicate rate: {current_test_results['average_duplicate_rate']}")
-                            # print(f"average mean gap: {current_test_results['average_mean_gap']}")
-                            # print(f"average stdev gap: {current_test_results['average_stdev_gap']}")
-                            
+                            self.calculate_statistics()
                         self.client.disconnect()
 
         
@@ -313,6 +301,7 @@ class Analyser:
         json_filename = "all_tests_results.json"
         with open(json_filename, "w") as f:
             json.dump(Analyser.all_tests_results, f, indent=4)
+
 
 if __name__ == "__main__":
     analyser = Analyser()
