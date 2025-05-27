@@ -5,4 +5,6 @@
 
 `pip3 install paho-mqtt`
 
+`pip3 install notebook pandas numpy matplotlib seaborn`
+
 `chmod +x start_publishers.sh`
